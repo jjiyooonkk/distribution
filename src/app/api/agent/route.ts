@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { SYSTEM_PROMPT, GENERATE_DISTRIBUTION_PROMPT } from '@/lib/agent/prompts';
 import { Personnel, TeamConfig } from '@/types';
+
+// Force Node.js runtime for stability with Google AI SDK
+export const runtime = 'nodejs';
 
 // Define the expected response structure
 interface AgentResponse {
@@ -38,40 +41,17 @@ export async function POST(req: Request) {
         }
 
         // 2. REAL AI MODE (Google Gemini)
+        console.log(`[API] Initializing Gemini with Key: ${apiKey.substring(0, 4)}****`);
         const genAI = new GoogleGenerativeAI(apiKey);
 
-        // Define result schema
-        const schema = {
-            description: "Personnel distribution result",
-            type: SchemaType.OBJECT,
-            properties: {
-                rationale: { type: SchemaType.STRING, description: "Explanation of distribution logic" },
-                assignments: {
-                    type: SchemaType.ARRAY,
-                    items: {
-                        type: SchemaType.OBJECT,
-                        properties: {
-                            personId: { type: SchemaType.STRING },
-                            teamId: { type: SchemaType.STRING },
-                            reason: { type: SchemaType.STRING }
-                        },
-                        required: ["personId", "teamId"]
-                    }
-                },
-                logs: {
-                    type: SchemaType.ARRAY,
-                    items: { type: SchemaType.STRING }
-                }
-            },
-            required: ["rationale", "assignments", "logs"]
-        };
-
+        // Use 'gemini-1.5-flash' (Standard) with 'v1' API version (Stable)
+        // This is critical to avoid 404 errors on v1beta endpoints
         const model = genAI.getGenerativeModel({
-            model: "gemini-pro",
+            model: "gemini-1.5-flash",
             generationConfig: {
                 responseMimeType: "application/json"
             }
-        });
+        }, { apiVersion: "v1" });
 
         // Simplify data to reduce token usage
         const simplifiedPersonnel = (personnel as Personnel[]).map(p => ({
@@ -101,12 +81,20 @@ export async function POST(req: Request) {
             (Please process all personnel. If list is truncated here, assume full list is available in context or generate logic to handle them.)
         `;
 
+        console.log("[API] Generating content...");
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
 
         if (!responseText) throw new Error("No response from AI");
 
         const parsedResult = JSON.parse(responseText) as AgentResponse;
+
+        // Add debug log to verify version
+        parsedResult.logs = [
+            ...(parsedResult.logs || []),
+            "[System] Model: gemini-1.5-flash (v1/v5 verified)"
+        ];
+
         return NextResponse.json(parsedResult);
 
     } catch (error: any) {
@@ -115,8 +103,14 @@ export async function POST(req: Request) {
         // Pass the status code if available
         const status = error.status || 500;
 
+        const errorMessage = error.message || "Unknown error";
+
         return NextResponse.json(
-            { error: "AI Agent processing failed (v4).", details: error.message },
+            {
+                error: `AI Agent processing failed (v5 - check logs).`,
+                details: errorMessage,
+                debug: "Env: v1/gemini-1.5-flash"
+            },
             { status }
         );
     }

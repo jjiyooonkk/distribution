@@ -1,4 +1,5 @@
 import { Personnel, TeamConfig } from '@/types';
+import { DistributionRule } from '@/components/features/input/DistributionRules';
 
 interface DistributionResult {
     teams: TeamConfig[];
@@ -8,29 +9,97 @@ interface DistributionResult {
 
 export const distributePersonnel = (
     personnelList: Personnel[],
-    teamConfigs: TeamConfig[]
+    teamConfigs: TeamConfig[],
+    rules: DistributionRule[] = []
 ): DistributionResult => {
-    // Deep copy to avoid mutating original state
-    const unassigned = [...personnelList];
-    const teams = teamConfigs.map(t => ({ ...t, members: [] as Personnel[] }));
+    // Deep copy
+    const allPersonnel = [...personnelList];
+    let teams = teamConfigs.map(t => ({ ...t, members: t.members ? [...t.members] : [] })); // Preserve existing members if any (from Agent/Rules)
     const logs: string[] = [];
 
-    // Shuffle personnel for randomness
-    shuffleArray(unassigned);
-    logs.push(`Started distribution for ${unassigned.length} personnel into ${teams.length} teams.`);
+    // Helper to find value in person (including attributes)
+    const getPersonValue = (p: Personnel, col: string): string => {
+        if (col === 'gender') return p.gender;
+        if (col === 'name') return p.name;
+        // Check attributes
+        if (p.attributes && p.attributes[col] !== undefined) return String(p.attributes[col]);
+        return '';
+    };
 
-    // Helper to check constraints
+    // Tracking assigned IDs to avoid double assignment or re-assignment
+    const assignedIds = new Set<string>();
+    teams.forEach(t => t.members.forEach(m => assignedIds.add(m.id)));
+
+    // PHASE 1: Apply Rules
+    rules.forEach((rule, idx) => {
+        logs.push(`[Rule ${idx + 1}] Check: ${rule.column} containing '${rule.value}' -> ${rule.type}`);
+
+        // Find matching target personnel who are NOT yet assigned
+        const targets = allPersonnel.filter(p => !assignedIds.has(p.id) && getPersonValue(p, rule.column).includes(rule.value || ''));
+
+        if (targets.length === 0) {
+            logs.push(`   -> No matching personnel found for rule.`);
+            return;
+        }
+
+        if (rule.type === 'assign_to_team') {
+            const targetTeam = teams.find(t => t.id === rule.targetTeamId);
+            if (targetTeam) {
+                targets.forEach(p => {
+                    if (targetTeam.members.length < targetTeam.capacity) {
+                        targetTeam.members.push({ ...p, assignedTeamId: targetTeam.id });
+                        assignedIds.add(p.id);
+                    } else {
+                        logs.push(`   -> Team ${targetTeam.name} full. Skipped ${p.name}.`);
+                    }
+                });
+                logs.push(`   -> Assigned ${targets.length} people to ${targetTeam.name}.`);
+            }
+        } else if (rule.type === 'distribute_evenly') {
+            // Sort teams by current count of THIS specific condition to balance it?
+            // Or just round robin.
+            // Better: Balance the count of matching attribute.
+            logs.push(`   -> Distributing ${targets.length} people evenly.`);
+
+            // Randomize targets first
+            shuffleArray(targets);
+
+            targets.forEach(p => {
+                // Find team with LOWEST count of people matching this rule
+                // AND having capacity
+                const bestTeam = teams
+                    .filter(t => t.members.length < t.capacity)
+                    .sort((a, b) => {
+                        const countA = a.members.filter(m => getPersonValue(m, rule.column).includes(rule.value || '')).length;
+                        const countB = b.members.filter(m => getPersonValue(m, rule.column).includes(rule.value || '')).length;
+                        // Determine fairness
+                        if (countA !== countB) return countA - countB;
+                        // Secondary: Total fill rate
+                        return (a.members.length / a.capacity) - (b.members.length / b.capacity);
+                    })[0];
+
+                if (bestTeam) {
+                    bestTeam.members.push({ ...p, assignedTeamId: bestTeam.id });
+                    assignedIds.add(p.id);
+                }
+            });
+        }
+    });
+
+    // PHASE 2: Standard Distribution for Remaining
+    const unassigned = allPersonnel.filter(p => !assignedIds.has(p.id));
+
+    // Helper to check constraints (History, etc.)
     const canAssign = (person: Personnel, teamName: string): boolean => {
         const history = person.history || [];
 
-        // 1. History Count Constraint: No more than 2 visits to same place (except Anseong)
-        // "Anseong" check: Normalized to handle casing or slight variations if needed
+        // 1. History Count Constraint
         if (!teamName.includes('Anseong') && !teamName.includes('안성')) {
             const visits = history.filter(h => h === teamName).length;
             if (visits >= 2) return false;
         }
 
-        // 2. Consecutive Constraint: Avoid Hoil/Boseong if visited immediately prior
+        // 2. Consecutive Constraint
         const lastLocation = history.length > 0 ? history[history.length - 1] : null;
         if (lastLocation && (lastLocation.includes('Hoil') || lastLocation.includes('호일') || lastLocation.includes('Boseong') || lastLocation.includes('보성'))) {
             if (lastLocation === teamName) return false;
@@ -39,25 +108,18 @@ export const distributePersonnel = (
         return true;
     };
 
-    // Greedy Distribution with Balance Attempt
-    // We iterate through available slots
+    // Shuffle remaining for randomness
+    shuffleArray(unassigned);
+    logs.push(`Standard distribution for remaining ${unassigned.length} personnel...`);
 
-    // Calculate total capacity
-    // const totalCapacity = teams.reduce((sum, t) => sum + t.capacity, 0);
+    // Reuse existing assignedIds or ignore it because we iterate 'unassigned' array which is already filtered?
+    // The original logic iterated 'unassigned' (which was ALL personnel).
+    // Now 'unassigned' is FILTERED.
+    // So we can just iterate it.
+    // But inside the loop it adds to 'assignedIds'.
+    // We should keep using the SAME set.
 
-    // Sort teams by capacity (optional, but good for filling) - skipping for now to respect order
-
-    // Round-robin or Fill-one-by-one? Round-robin is better for gender balance usually.
-
-    const assignedIds = new Set<string>();
-
-    // Pass 1: Assign ensuring constraints
-    // We iterate through teams and try to pick a suitable person for each slot
-    // But strictly round-robin is better: Pick a person, find best team.
-    // OR: Loop slots vertically.
-
-    // Strategy: Loop through unassigned personnel and place them in the first valid team that isn't full and maintains gender balance if possible.
-    // Actually, to ensure fairness and balance, let's try to place them in the team with the lowest current fill rate.
+    // (Removed redeclaration of assignedIds)
 
     for (const person of unassigned) {
         // Sort teams by current usage ratio map to find least filled teams

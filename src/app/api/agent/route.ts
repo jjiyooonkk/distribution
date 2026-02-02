@@ -66,13 +66,12 @@ export async function POST(req: Request) {
             required: ["rationale", "assignments", "logs"]
         };
 
-        // Use 'gemini-1.5-flash' as requested
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash-latest",
+            model: "gemini-1.5-flash",
             generationConfig: {
                 responseMimeType: "application/json"
             }
-        }, { apiVersion: "v1beta" });
+        });
 
         // Simplify data to reduce token usage
         const simplifiedPersonnel = (personnel as Personnel[]).map(p => ({
@@ -117,7 +116,7 @@ export async function POST(req: Request) {
         const status = error.status || 500;
 
         return NextResponse.json(
-            { error: "AI Agent processing failed.", details: error.message },
+            { error: "AI Agent processing failed (v2).", details: error.message },
             { status }
         );
     }

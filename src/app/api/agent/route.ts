@@ -67,7 +67,7 @@ export async function POST(req: Request) {
         };
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-1.5-flash-001",
             generationConfig: {
                 responseMimeType: "application/json"
             }
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
         const status = error.status || 500;
 
         return NextResponse.json(
-            { error: "AI Agent processing failed (v2).", details: error.message },
+            { error: "AI Agent processing failed (v3).", details: error.message },
             { status }
         );
     }

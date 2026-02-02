@@ -72,7 +72,7 @@ export async function POST(req: Request) {
             generationConfig: {
                 responseMimeType: "application/json"
             }
-        });
+        }, { apiVersion: "v1" });
 
         // Simplify data to reduce token usage
         const simplifiedPersonnel = (personnel as Personnel[]).map(p => ({

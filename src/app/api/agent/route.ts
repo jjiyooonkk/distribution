@@ -68,11 +68,11 @@ export async function POST(req: Request) {
 
         // Use 'gemini-1.5-flash' as requested
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-1.5-flash-latest",
             generationConfig: {
                 responseMimeType: "application/json"
             }
-        }, { apiVersion: "v1" });
+        }, { apiVersion: "v1beta" });
 
         // Simplify data to reduce token usage
         const simplifiedPersonnel = (personnel as Personnel[]).map(p => ({

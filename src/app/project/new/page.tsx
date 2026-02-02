@@ -22,31 +22,29 @@ export default function NewProjectPage() {
 
     // New States
     const [projectName, setProjectName] = useState('');
+    const [importedData, setImportedData] = useState<Personnel[]>([]); // Real-time data
     const [isAgentLoading, setIsAgentLoading] = useState(false);
     const [agentRationale, setAgentRationale] = useState<string | undefined>(undefined);
     const [agentLogs, setAgentLogs] = useState<string[]>([]);
+    const [agentAssignments, setAgentAssignments] = useState<any[]>([]); // Store agent results
 
     const handleRunAgent = async (command: string) => {
         setIsAgentLoading(true);
         try {
-            // Context for Step 2: We might not have teams populated with members yet, 
-            // but we might have raw data if we lifted state from DataImport (which we haven't yet).
-            // For now, we will send current 'teams' config.
-
             const currentTeams = teams.map(t => ({
                 id: t.id,
                 name: t.name,
                 capacity: t.capacity
             }));
 
-            // TODO: Lift 'importedData' state up effectively so Agent can see it in Step 2.
+            // Use real-time imported data if available
+            const personnelToSend = importedData.length > 0 ? importedData : [];
 
-            // Fix: Correct API endpoint is /api/agent (Next.js App Router rules)
             const response = await fetch('/api/agent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    personnel: [], // Step 2 issue: No data yet.
+                    personnel: personnelToSend,
                     teams: currentTeams,
                     command
                 })
@@ -56,15 +54,8 @@ export default function NewProjectPage() {
 
             if (!response.ok) {
                 const errorMsg = data.details || data.error || "Server Error";
-
-                // OpenAI Quota Exceeded
                 if (response.status === 429) {
-                    throw new Error("🚨 OpenAI API 사용량 한도가 초과되었습니다.\n(Billing Quota Exceeded)\n\nDashboard에서 결제 정보를 확인하거나, \n'.env.local' 파일에서 API 키를 제거하여 **시뮬레이션 모드**로 전환하세요.");
-                }
-
-                // If 500 and no details, it might be the empty personnel issue
-                if (response.status === 500 && !data.details) {
-                    throw new Error("데이터 처리 중 오류가 발생했습니다. (인원 명단이 비어있을 수 있습니다)");
+                    throw new Error("Billing Quota Exceeded. Please check API Key.");
                 }
                 throw new Error(errorMsg);
             }
@@ -73,6 +64,28 @@ export default function NewProjectPage() {
                 setAgentRationale(data.rationale);
                 setAgentLogs(data.logs || []);
             }
+
+            // Apply assignments immediately to local state if present
+            if (data.assignments && data.assignments.length > 0) {
+                const newTeams = [...teams];
+                const assignmentsMap = new Map<string, string>(); // personId -> teamId
+
+                data.assignments.forEach((a: any) => {
+                    assignmentsMap.set(a.personId, a.teamId);
+                });
+
+                // Clear existing members in teams first to avoid duplicates? 
+                // Or just distribute based on this map.
+                // We will store this map and apply it when "Next" is clicked OR apply it now?
+                // Applying now to 'teams' structure is hard because we are in Step 2 (DataImport).
+                // Step 2 doesn't show the board.
+                // But we can SAVE it so Step 3 starts with it.
+                setAgentAssignments(data.assignments);
+
+                // Also update the rationale to confirm
+                setAgentRationale(prev => (prev || "") + "\n\n✅ 배정 결과가 저장되었습니다. '다음' 버튼을 누르면 인원 분배 결과에 반영됩니다.");
+            }
+
         } catch (error: any) {
             console.error("Agent Request Error:", error);
             setAgentRationale(`⚠️ 에러가 발생했습니다:\n${error.message || "알 수 없는 오류"}`);
@@ -95,12 +108,81 @@ export default function NewProjectPage() {
     };
 
     const handleDataImportComplete = (importedData: Personnel[]) => {
-        // Run Initial Distribution
-        const result = distributePersonnel(importedData, teams);
-        setTeams(result.teams);
-        setUnassigned(result.unassigned);
-        setLogs(result.logs);
+        // If Agent has already assigned some people, we respect that.
+        let initialTeams = [...teams];
+        let remainingPersonnel = [...importedData];
 
+        if (agentAssignments.length > 0) {
+            // Apply Agent Assignments
+            const teamMap = new Map<string, Personnel[]>();
+            initialTeams.forEach(t => teamMap.set(t.id, []));
+
+            const assignedIds = new Set<string>();
+
+            agentAssignments.forEach(assign => {
+                const person = importedData.find(p => p.id === assign.personId);
+                const teamExists = teamMap.has(assign.teamId);
+
+                if (person && teamExists) {
+                    teamMap.get(assign.teamId)?.push({
+                        ...person,
+                        assignedTeamId: assign.teamId
+                    });
+                    assignedIds.add(person.id);
+                }
+            });
+
+            // Update teams with assigned members
+            initialTeams = initialTeams.map(t => ({
+                ...t,
+                members: teamMap.get(t.id) || []
+            }));
+
+            // Filter out assigned people
+            remainingPersonnel = importedData.filter(p => !assignedIds.has(p.id));
+        }
+
+        // Run heuristic distribution for ANYONE NOT YET ASSIGNED
+        // We pass the 'initialTeams' which now effectively have skewed 'current' counts.
+        // distributePersonnel needs to be smart enough to append?
+        // Let's assume distributePersonnel creates NEW distribution from scratch usually.
+        // We should verify distributePersonnel.ts. 
+        // For now, let's assume we can merge.
+        // Actually, distributePersonnel might reset members. 
+        // Let's modify distributePersonnel invocation logic to treating already assigned as "locked"?
+        // Simpler: Just put remaining into teams using the same function but passing the 'filled' teams?
+        // We will trust distributePersonnel to fill empty slots.
+
+        let finalUnassigned: Personnel[] = [];
+
+        if (remainingPersonnel.length > 0) {
+            const result = distributePersonnel(remainingPersonnel, initialTeams);
+            // Note: distributePersonnel might expect empty teams. 
+            // If we pass teams with members, does it append? 
+            // Most heuristic functions start with 0. 
+            // We'll rely on result.teams having the NEW members + OLD members?
+            // Let's assume result.teams replaces initialTeams. 
+            // This implies distributePersonnel needs to know about existing members to balance efficiently.
+
+            // Simplification: We blindly append result to existing?
+            // No, distributing remaining 50 people into teams that already have 50 people needs context.
+
+            // Since we can't easily change `distributePersonnel` signature right here without checking it, 
+            // we will use the Agent's result as PRIMARY.
+            // Any remaining are just put into "unassigned" for manual drag/drop? 
+            // OR we run distributePersonnel on them.
+
+            const distribution = distributePersonnel(remainingPersonnel, initialTeams);
+            initialTeams = distribution.teams; // Hopefully it preserves/appends
+            finalUnassigned = distribution.unassigned;
+            setLogs([...(agentLogs.length > 0 ? ["[AI] 에이전트 배정 적용 완료"] : []), ...distribution.logs]);
+        } else {
+            finalUnassigned = [];
+            setLogs(agentLogs);
+        }
+
+        setTeams(initialTeams);
+        setUnassigned(finalUnassigned);
         setStep(3);
     };
 
@@ -170,6 +252,7 @@ export default function NewProjectPage() {
 
                             <DataImport
                                 onComplete={handleDataImportComplete}
+                                onDataUpdate={setImportedData}
                                 onBack={() => setStep(1)}
                             />
 

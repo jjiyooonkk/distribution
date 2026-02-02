@@ -9,6 +9,7 @@ import { Personnel } from '@/types';
 
 interface DataImportProps {
     onComplete: (data: Personnel[]) => void;
+    onDataUpdate?: (data: Personnel[]) => void;
     onBack: () => void;
 }
 
@@ -25,7 +26,7 @@ type ExtraMapping = {
     header: string;
 };
 
-export const DataImport: React.FC<DataImportProps> = ({ onComplete, onBack }) => {
+export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate, onBack }) => {
     const [file, setFile] = useState<File | null>(null);
     const [data, setData] = useState<any[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
@@ -107,26 +108,26 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onBack }) =>
         ));
     };
 
-    const finalizeImport = () => {
-        // Transform into system Personnel type
+    // Real-time processing for Agent and Preview
+    const processedPersonnel = React.useMemo(() => {
+        if (data.length === 0) return [];
+
         const nameIdx = headers.indexOf(mapping.name);
         const genderIdx = headers.indexOf(mapping.gender);
         const historyIdx = headers.indexOf(mapping.history);
         const tagsIdx = headers.indexOf(mapping.tags);
 
-        const processedData: Personnel[] = data.map((row, idx) => {
+        return data.map((row, idx) => {
             const historyRaw = historyIdx >= 0 ? String(row[historyIdx] || '') : '';
             const tagsRaw = tagsIdx >= 0 ? String(row[tagsIdx] || '') : '';
 
             const genderVal = row[genderIdx];
-            // Normalize gender value
             const isMale = String(genderVal).trim().toUpperCase().startsWith('M') || String(genderVal).trim() === '남';
 
             return {
                 id: `p-${idx}`,
                 name: row[nameIdx],
                 gender: (isMale ? 'M' : 'F') as 'M' | 'F',
-                // Parse "Anseong, Hoil" -> ['Anseong', 'Hoil']
                 history: historyRaw.split(',').map(s => s.trim()).filter(Boolean),
                 tags: tagsRaw.split(',').map(s => s.trim()).filter(Boolean),
                 attributes: extraMappings.reduce((acc, m) => {
@@ -137,9 +138,18 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onBack }) =>
                     return acc;
                 }, {} as Record<string, any>)
             };
-        }).filter(p => p.name); // Filter empty rows
+        }).filter(p => p.name);
+    }, [data, headers, mapping, extraMappings]);
 
-        onComplete(processedData);
+    // Lift state up whenever data changes
+    React.useEffect(() => {
+        if (onDataUpdate) {
+            onDataUpdate(processedPersonnel);
+        }
+    }, [processedPersonnel, onDataUpdate]);
+
+    const finalizeImport = () => {
+        onComplete(processedPersonnel);
     };
 
     return (

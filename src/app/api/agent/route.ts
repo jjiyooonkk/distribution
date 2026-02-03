@@ -28,9 +28,17 @@ export async function POST(req: Request) {
             await new Promise(resolve => setTimeout(resolve, 2000));
 
             const mockResponse: AgentResponse = {
-                rationale: "API 키가 설정되지 않아 **시뮬레이션 모드**로 동작합니다.\n\n사용자의 요청('운전자 우선 배정 등')을 분석한 결과, 각 팀의 밸런스를 위해 운전 가능 인원을 우선적으로 분산 배치하였습니다.",
-                assignments: [], // Empty assignments means "Keep current or use default logic"
+                rationale: "API 키가 설정되지 않아 **시뮬레이션 모드**로 동작합니다.\n\n" +
+                    "🔍 **디버깅 정보 (Vercel)**\n" +
+                    `- Key Found: ${!!apiKey}\n` +
+                    `- Key Length: ${apiKey ? apiKey.length : 0}\n` +
+                    `- Node Env: ${process.env.NODE_ENV}\n` +
+                    `- Region: ${process.env.VERCEL_REGION || 'local'}\n` +
+                    "\n사용자의 요청('운전자 우선 배정 등')을 분석한 결과, 각 팀의 밸런스를 위한 시뮬레이션 결과를 제안합니다.",
+                assignments: [],
                 logs: [
+                    "[System] Error: GEMINI_API_KEY is undefined",
+                    `[Debug] Env Var Check: ${!!apiKey ? 'Present' : 'Missing'}`,
                     "[Simulation] 운전자 식별: 12명 확인",
                     "[Simulation] 각 팀에 1~2명씩 운전자 우선 배정",
                     "[Simulation] 남녀 성비 6:4 유지하며 나머지 인원 무작위 배정"

@@ -54,12 +54,12 @@ export async function POST(req: Request) {
 
         // Use 'gemini-1.5-flash' (Standard) with 'v1' API version (Stable)
         // This is critical to avoid 404 errors on v1beta endpoints
-        // Use 'gemini-1.5-flash' (Standard) with 'v1' API version (Stable)
-        // Note: responseMimeType is causing 400 error on v1 in this SDK version context. 
-        // We will rely on the prompt to enforce JSON structure.
+        // Use 'gemini-1.5-flash' with 'v1beta' (More features/models available)
+        // Note: responseMimeType was removed to avoid 400 errors, but v1beta handles it better usually.
+        // However, to be safe, we keep responseMimeType OFF for now and rely on prompt.
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash"
-        }, { apiVersion: "v1" });
+        }, { apiVersion: "v1beta" });
 
         // Simplify data to reduce token usage
         const simplifiedPersonnel = (personnel as Personnel[]).map(p => ({
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
         // Add debug log to verify version
         parsedResult.logs = [
             ...(parsedResult.logs || []),
-            "[System] Model: gemini-1.5-flash (v1/v5 verified)"
+            "[System] Model: gemini-1.5-flash (v1beta verified)"
         ];
 
         return NextResponse.json(parsedResult);
@@ -115,9 +115,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json(
             {
-                error: `AI Agent processing failed (v6 - JSON mode disabled).`,
+                error: `AI Agent processing failed (v7 - v1beta retry).`,
                 details: errorMessage,
-                debug: "Env: v1/gemini-1.5-flash/no-mime"
+                debug: "Env: v1beta/gemini-1.5-flash"
             },
             { status }
         );

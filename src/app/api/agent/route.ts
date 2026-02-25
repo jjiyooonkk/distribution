@@ -58,7 +58,8 @@ export async function POST(req: Request) {
         // Note: responseMimeType was removed to avoid 400 errors, but v1beta handles it better usually.
         // However, to be safe, we keep responseMimeType OFF for now and rely on prompt.
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash"
+            model: "gemini-2.0-flash",
+            generationConfig: { responseMimeType: "application/json" }
         }, { apiVersion: "v1beta" });
 
         // Simplify data to reduce token usage
@@ -92,15 +93,16 @@ export async function POST(req: Request) {
         console.log("[API] Generating content...");
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
-
         if (!responseText) throw new Error("No response from AI");
 
-        const parsedResult = JSON.parse(responseText) as AgentResponse;
+        // Strip markdown backticks if AI accidentally includes them despite JSON mode
+        const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+        const parsedResult = JSON.parse(cleanedText) as AgentResponse;
 
         // Add debug log to verify version
         parsedResult.logs = [
             ...(parsedResult.logs || []),
-            "[System] Model: gemini-1.5-flash (v1 verified)"
+            "[System] Model: gemini-2.0-flash (v1beta verified)"
         ];
 
         return NextResponse.json(parsedResult);
@@ -115,9 +117,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json(
             {
-                error: `AI Agent processing failed (v7 - v1 stable).`,
+                error: `AI Agent processing failed (v8 - 2.0 stable).`,
                 details: errorMessage,
-                debug: "Env: v1/gemini-1.5-flash"
+                debug: "Env: v1beta/gemini-2.0-flash"
             },
             { status }
         );

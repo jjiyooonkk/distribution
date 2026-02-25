@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TeamConfiguration } from '@/components/features/input/TeamConfiguration';
 import { DataImport } from '@/components/features/input/DataImport';
 import { Card } from '@/components/ui/Card';
@@ -28,6 +28,53 @@ export default function NewProjectPage() {
     const [agentRationale, setAgentRationale] = useState<string | undefined>(undefined);
     const [agentLogs, setAgentLogs] = useState<string[]>([]);
     const [agentAssignments, setAgentAssignments] = useState<any[]>([]); // Store agent results
+
+    // --- Persistence Logic ---
+    const STORAGE_KEY = 'jinjjajal_new_project_state';
+
+    // Load state on mount
+    useEffect(() => {
+        const savedState = localStorage.getItem(STORAGE_KEY);
+        if (savedState) {
+            try {
+                const parsed = JSON.parse(savedState);
+                if (parsed.step) setStep(parsed.step);
+                if (parsed.teams) setTeams(parsed.teams);
+                if (parsed.unassigned) setUnassigned(parsed.unassigned);
+                if (parsed.logs) setLogs(parsed.logs);
+                if (parsed.projectName) setProjectName(parsed.projectName);
+                if (parsed.importedData) setImportedData(parsed.importedData);
+                if (parsed.agentRationale) setAgentRationale(parsed.agentRationale);
+                if (parsed.agentLogs) setAgentLogs(parsed.agentLogs);
+                if (parsed.agentAssignments) setAgentAssignments(parsed.agentAssignments);
+            } catch (e) {
+                console.error("Failed to restore session:", e);
+            }
+        }
+    }, []);
+
+    // Save state on changes
+    useEffect(() => {
+        const stateToSave = {
+            step,
+            teams,
+            unassigned,
+            logs,
+            projectName,
+            importedData,
+            agentRationale,
+            agentLogs,
+            agentAssignments
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    }, [step, teams, unassigned, logs, projectName, importedData, agentRationale, agentLogs, agentAssignments]);
+
+    const handleReset = () => {
+        if (confirm("모든 데이터가 초기화됩니다. 계속하시겠습니까?")) {
+            localStorage.removeItem(STORAGE_KEY);
+            window.location.reload();
+        }
+    };
 
     const handleRunAgent = async (command: string) => {
         setIsAgentLoading(true);
@@ -209,9 +256,14 @@ export default function NewProjectPage() {
                 }} className="hover-link">
                     <ArrowLeft size={16} /> 대시보드로 돌아가기
                 </Link>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.03em', background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                    {projectName || "새 인원 분배 프로젝트"}
-                </h1>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.03em', background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        {projectName || "새 인원 분배 프로젝트"}
+                    </h1>
+                    <Button variant="ghost" onClick={handleReset} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        초기화하고 처음부터 시작
+                    </Button>
+                </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>효율적이고 공정한 인원 분배를 위한 스마트 워크스페이스</p>
             </header>
 

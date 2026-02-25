@@ -59,7 +59,7 @@ export async function POST(req: Request) {
         // However, to be safe, we keep responseMimeType OFF for now and rely on prompt.
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash"
-        }, { apiVersion: "v1beta" });
+        }, { apiVersion: "v1" });
 
         // Simplify data to reduce token usage
         const simplifiedPersonnel = (personnel as Personnel[]).map(p => ({
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
         // Add debug log to verify version
         parsedResult.logs = [
             ...(parsedResult.logs || []),
-            "[System] Model: gemini-1.5-flash (v1beta verified)"
+            "[System] Model: gemini-1.5-flash (v1 verified)"
         ];
 
         return NextResponse.json(parsedResult);
@@ -115,9 +115,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json(
             {
-                error: `AI Agent processing failed (v7 - v1beta retry).`,
+                error: `AI Agent processing failed (v7 - v1 stable).`,
                 details: errorMessage,
-                debug: "Env: v1beta/gemini-1.5-flash"
+                debug: "Env: v1/gemini-1.5-flash"
             },
             { status }
         );

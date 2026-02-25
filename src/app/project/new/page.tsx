@@ -11,6 +11,7 @@ import { distributePersonnel } from '@/lib/distributor';
 import { DistributionBoard } from '@/components/features/board/DistributionBoard';
 import { FinalPreviewModal } from '@/components/features/output/FinalPreviewModal';
 import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { AgentChat } from '@/components/features/board/AgentChat';
 
 export default function NewProjectPage() {
@@ -290,6 +291,11 @@ export default function NewProjectPage() {
                         <div className="animate-in fade-in zoom-in duration-500">
                             <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
                                 <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                                        <Button variant="ghost" onClick={() => setStep(2)} style={{ padding: '4px 8px', height: 'auto', fontSize: '0.85rem' }}>
+                                            <ArrowLeft size={14} style={{ marginRight: '4px' }} /> 이전 단계로
+                                        </Button>
+                                    </div>
                                     <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '8px' }}>Step 3. 최종 분배 현황판</h2>
                                     <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
                                         배정 결과를 검토하세요. 드래그 앤 드롭으로 인원을 자유롭게 이동할 수 있습니다.

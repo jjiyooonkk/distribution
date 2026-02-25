@@ -37,25 +37,59 @@ function SortableItem({ id, person }: { id: string, person: Personnel }) {
         isDragging
     } = useSortable({ id });
 
-    const style = {
+    const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-        marginBottom: '8px',
-        padding: '12px',
-        backgroundColor: person.gender === 'M' ? '#1e293b' : '#334155', // Simple visual distinction
-        borderLeft: `4px solid ${person.gender === 'M' ? '#60a5fa' : '#f472b6'}`,
-        borderRadius: '4px',
-        fontSize: '0.9rem',
+        transition: transition || undefined,
+        opacity: isDragging ? 0.4 : 1,
+        marginBottom: '10px',
+        padding: '14px 16px',
+        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(8px)',
+        border: '1px solid var(--border)',
+        borderLeft: `3px solid ${person.gender === 'M' ? '#60a5fa' : '#f472b6'}`,
+        borderRadius: 'var(--radius-sm)',
+        fontSize: '0.95rem',
         cursor: 'grab',
+        boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
     };
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-            <div style={{ fontWeight: 600 }}>{person.name}</div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
-                {person.history?.join(', ') || 'No History'}
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...listeners}
+            {...attributes}
+            className="animate-in fade-in duration-300"
+        >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{person.name}</span>
+                <span style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    color: person.gender === 'M' ? '#2563eb' : '#db2777',
+                    background: person.gender === 'M' ? '#eff6ff' : '#fdf2f8',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                }}>
+                    {person.gender}
+                </span>
             </div>
+            {person.history && person.history.length > 0 && (
+                <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    gap: '4px',
+                    flexWrap: 'wrap'
+                }}>
+                    {person.history.map((h, i) => (
+                        <span key={i} style={{ opacity: 0.8 }}>#{h}</span>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -66,32 +100,71 @@ function DroppableContainer({ id, title, items, capacity }: { id: string, title:
 
     const mCount = items.filter(p => p.gender === 'M').length;
     const fCount = items.length - mCount;
+    const isOverCapacity = items.length > capacity;
 
     return (
-        <Card style={{ minWidth: '280px', display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border)', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h4 style={{ fontWeight: 600 }}>{title}</h4>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        M: {mCount} / F: {fCount}
+        <Card style={{
+            minWidth: '300px',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            padding: '20px',
+            background: isOverCapacity ? 'rgba(254, 242, 242, 0.5)' : 'var(--surface)',
+            borderColor: isOverCapacity ? 'rgba(239, 68, 68, 0.2)' : 'var(--border)',
+            overflow: 'hidden'
+        }}>
+            <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+                    <h4 style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-main)' }}>{title}</h4>
+                    <span style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        background: isOverCapacity ? 'var(--error)' : 'var(--primary)',
+                        color: 'white',
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+                    }}>
+                        {items.length} / {capacity}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#60a5fa' }} />
+                        <span>남 {mCount}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f472b6' }} />
+                        <span>여 {fCount}</span>
                     </div>
                 </div>
-                <span style={{
-                    fontSize: '0.8rem',
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    background: items.length > capacity ? 'var(--error)' : 'var(--surface-hover)',
-                    color: items.length > capacity ? 'white' : 'var(--text-muted)'
-                }}>
-                    {items.length}/{capacity}
-                </span>
             </div>
 
             <SortableContext id={id} items={items.map(p => p.id)} strategy={verticalListSortingStrategy}>
-                <div ref={setNodeRef} style={{ minHeight: '200px', flex: 1 }}>
+                <div ref={setNodeRef} style={{
+                    minHeight: '200px',
+                    flex: 1,
+                    overflowY: 'auto',
+                    paddingRight: '4px',
+                }}>
                     {items.map((p) => (
                         <SortableItem key={p.id} id={p.id} person={p} />
                     ))}
+                    {items.length === 0 && (
+                        <div style={{
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.9rem',
+                            border: '1px dashed var(--border)',
+                            borderRadius: 'var(--radius-md)',
+                            minHeight: '100px'
+                        }}>
+                            여기로 드래그하세요
+                        </div>
+                    )}
                 </div>
             </SortableContext>
         </Card>

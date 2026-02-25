@@ -188,21 +188,41 @@ export default function NewProjectPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '100px' }}>
-            <header style={{ padding: '32px 0', borderBottom: '1px solid var(--border)', marginBottom: '32px' }}>
-                <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
+            <header style={{
+                padding: '48px 0',
+                borderBottom: '1px solid var(--border)',
+                marginBottom: '48px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+            }}>
+                <Link href="/" style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    transition: 'color 0.2s'
+                }} className="hover-link">
                     <ArrowLeft size={16} /> 대시보드로 돌아가기
                 </Link>
-                <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>새 인원 분배 프로젝트</h1>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.03em', background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    {projectName || "새 인원 분배 프로젝트"}
+                </h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>효율적이고 공정한 인원 분배를 위한 스마트 워크스페이스</p>
             </header>
 
-            {/* If Step 3, we might want to hide the sidebar and give full width to board */}
-            <div style={{ display: step === 3 ? 'block' : 'grid', gridTemplateColumns: '300px 1fr', gap: '32px' }}>
-                {/* Sidebar Steps */}
+            <div style={{ display: step === 3 ? 'block' : 'grid', gridTemplateColumns: '320px 1fr', gap: '48px' }}>
                 {/* Sidebar - Hide if step 3 */}
                 {step !== 3 && (
                     <aside>
-                        <Card style={{ position: 'sticky', top: '24px' }}>
-                            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <Card style={{ position: 'sticky', top: '24px', padding: '32px' }}>
+                            <div style={{ marginBottom: '24px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                Project Progress
+                            </div>
+                            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                 <StepItem number={1} title="단위(팀) 설정" active={step === 1} completed={step > 1} />
                                 <StepItem number={2} title="인원 명단 업로드" active={step === 2} completed={step > 2} />
                                 <StepItem number={3} title="결과 검토 및 확정" active={false} completed={false} />
@@ -212,23 +232,23 @@ export default function NewProjectPage() {
                 )}
 
                 {/* Main Content Area */}
-                <main>
+                <main className="animate-fade-in">
                     {step === 1 && (
-                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div>
                             {/* Project Name Input */}
-                            <div style={{ marginBottom: '32px' }}>
+                            <div style={{ marginBottom: '40px' }}>
+                                <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-secondary)' }}>프로젝트 이름</label>
                                 <Input
-                                    label="프로젝트 이름"
                                     placeholder="예: 2024년 신입생 오리엔테이션 조 편성"
                                     value={projectName}
                                     onChange={(e) => setProjectName(e.target.value)}
-                                    style={{ fontSize: '1.2rem', padding: '12px' }}
+                                    style={{ fontSize: '1.25rem', padding: '16px 20px', borderRadius: 'var(--radius-md)' }}
                                 />
                             </div>
 
-                            <div style={{ marginBottom: '24px' }}>
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '8px' }}>배정 단위(팀) 정의</h2>
-                                <p style={{ color: 'var(--text-secondary)' }}>
+                            <div style={{ marginBottom: '32px' }}>
+                                <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 1. 배정 단위(팀) 정의</h2>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>
                                     인원을 분배할 그룹, 팀 또는 장소를 설정하세요.
                                     자동 생성 기능을 사용하거나 수동으로 추가할 수 있습니다.
                                 </p>
@@ -238,14 +258,14 @@ export default function NewProjectPage() {
                     )}
 
                     {step === 2 && (
-                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div style={{ marginBottom: '24px' }}>
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '8px' }}>데이터 가져오기</h2>
-                                <p style={{ color: 'var(--text-secondary)' }}>
+                        <div>
+                            <div style={{ marginBottom: '32px' }}>
+                                <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 2. 데이터 가져오기</h2>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>
                                     인원 명단(Excel/CSV)을 업로드하세요.
                                     <br />
-                                    <span style={{ fontSize: '0.85rem', color: 'var(--primary)' }}>
-                                        * 특히 '과거 이력' 컬럼을 매핑하면 연속 방문 방지 조건을 적용할 수 있습니다.
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: 600 }}>
+                                        💡 특히 '과거 이력' 컬럼을 매핑하면 연속 방문 방지 조건을 적용할 수 있습니다.
                                     </span>
                                 </p>
                             </div>
@@ -268,16 +288,16 @@ export default function NewProjectPage() {
 
                     {step === 3 && (
                         <div className="animate-in fade-in zoom-in duration-500">
-                            <header style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
                                 <div>
-                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>분배 현황판</h2>
-                                    <p style={{ color: 'var(--text-secondary)' }}>
-                                        배정 결과를 검토하세요. 드래그 앤 드롭으로 인원을 이동할 수 있습니다.
-                                        {unassigned.length > 0 && <span style={{ color: 'var(--error)', marginLeft: '8px' }}>({unassigned.length}명 미배정)</span>}
+                                    <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '8px' }}>Step 3. 최종 분배 현황판</h2>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
+                                        배정 결과를 검토하세요. 드래그 앤 드롭으로 인원을 자유롭게 이동할 수 있습니다.
+                                        {unassigned.length > 0 && <span style={{ color: 'var(--error)', marginLeft: '12px', fontWeight: 600 }}>⚠️ {unassigned.length}명 미배정</span>}
                                     </p>
                                 </div>
-                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                    제약 로그: {logs.length}건
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--border)' }}>
+                                    제약 로그: <strong>{logs.length}건</strong>
                                 </div>
                             </header>
 
@@ -305,25 +325,34 @@ const StepItem = ({ number, title, active, completed }: { number: number, title:
         <li style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            opacity: active || completed ? 1 : 0.5,
-            transition: 'opacity 0.2s'
+            gap: '16px',
+            opacity: active || completed ? 1 : 0.4,
+            transition: 'all 0.3s ease',
+            transform: active ? 'translateX(8px)' : 'none'
         }}>
             <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                background: active ? 'var(--primary)' : (completed ? 'var(--success)' : 'var(--surface)'),
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                background: active ? 'var(--primary-gradient)' : (completed ? 'var(--success)' : 'white'),
                 border: active || completed ? 'none' : '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: 600,
-                color: active || completed ? 'white' : 'var(--text-secondary)'
+                fontWeight: 700,
+                color: active || completed ? 'white' : 'var(--text-muted)',
+                boxShadow: active ? '0 10px 15px -3px rgba(15, 23, 42, 0.2)' : 'none'
             }}>
                 {completed ? '✓' : number}
             </div>
-            <span style={{ fontWeight: active ? 600 : 400, color: active ? 'var(--text-main)' : 'var(--text-secondary)' }}>{title}</span>
+            <span style={{
+                fontWeight: active ? 700 : 500,
+                fontSize: '1.05rem',
+                color: active ? 'var(--text-main)' : 'var(--text-secondary)'
+            }}>
+                {title}
+            </span>
         </li>
     );
 }
+

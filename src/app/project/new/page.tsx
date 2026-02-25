@@ -367,7 +367,7 @@ export default function NewProjectPage() {
 
                 {/* Main Content Area */}
                 <main className="animate-fade-in">
-                    {step === 1 && (
+                    <div style={{ display: step === 1 ? 'block' : 'none' }}>
                         <div>
                             {/* Project Name Input */}
                             <div style={{ marginBottom: '40px' }}>
@@ -387,11 +387,14 @@ export default function NewProjectPage() {
                                     자동 생성 기능을 사용하거나 수동으로 추가할 수 있습니다.
                                 </p>
                             </div>
-                            <TeamConfiguration onComplete={handleTeamConfigComplete} />
+                            <TeamConfiguration
+                                initialTeams={teams}
+                                onComplete={handleTeamConfigComplete}
+                            />
                         </div>
-                    )}
+                    </div>
 
-                    {step === 2 && (
+                    <div style={{ display: step === 2 ? 'block' : 'none' }}>
                         <div>
                             <div style={{ marginBottom: '32px' }}>
                                 <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 2. 데이터 가져오기</h2>
@@ -418,9 +421,9 @@ export default function NewProjectPage() {
                                 logs={agentLogs}
                             />
                         </div>
-                    )}
+                    </div>
 
-                    {step === 3 && (
+                    <div style={{ display: step === 3 ? 'block' : 'none' }}>
                         <div className="animate-in fade-in zoom-in duration-500">
                             <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
                                 <div>
@@ -446,7 +449,7 @@ export default function NewProjectPage() {
                                 onExport={() => setIsModalOpen(true)}
                             />
                         </div>
-                    )}
+                    </div>
                 </main>
             </div>
             <FinalPreviewModal

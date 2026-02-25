@@ -8,11 +8,12 @@ import { TeamConfig } from '@/types';
 import { Trash2, Plus, Wand2 } from 'lucide-react';
 
 interface TeamConfigurationProps {
+    initialTeams?: TeamConfig[];
     onComplete: (teams: TeamConfig[]) => void;
 }
 
-export const TeamConfiguration: React.FC<TeamConfigurationProps> = ({ onComplete }) => {
-    const [teams, setTeams] = useState<TeamConfig[]>([]);
+export const TeamConfiguration: React.FC<TeamConfigurationProps> = ({ initialTeams, onComplete }) => {
+    const [teams, setTeams] = useState<TeamConfig[]>(initialTeams || []);
 
     // Auto-generation state
     const [prefix, setPrefix] = useState('Team');

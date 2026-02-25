@@ -11,15 +11,77 @@ interface AgentChatProps {
     logs?: string[];
 }
 
+interface Message {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    logs?: string[];
+    timestamp: number;
+}
+
 export const AgentChat: React.FC<AgentChatProps> = ({ onRunAgent, isLoading, lastRationale, logs }) => {
     const [command, setCommand] = useState('');
     const [isOpen, setIsOpen] = useState(false);
+    const [messages, setMessages] = useState<Message[]>([]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const STORAGE_KEY = 'jinjjajal_agent_chat_history';
+
+    // Load history
+    React.useEffect(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                setMessages(JSON.parse(saved));
+            } catch (e) {
+                console.error("Failed to load chat history:", e);
+            }
+        }
+    }, []);
+
+    // Save history
+    React.useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    }, [messages]);
+
+    // Handle new assistant responses
+    React.useEffect(() => {
+        if (lastRationale && !isLoading) {
+            // Check if this rationale is already in messages (simple check by content)
+            const exists = messages.some(m => m.role === 'assistant' && m.content === lastRationale);
+            if (!exists) {
+                setMessages(prev => [...prev, {
+                    id: `ai-${Date.now()}`,
+                    role: 'assistant',
+                    content: lastRationale,
+                    logs: logs,
+                    timestamp: Date.now()
+                }]);
+            }
+        }
+    }, [lastRationale, isLoading, logs]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!command.trim()) return;
-        onRunAgent(command);
+        if (!command.trim() || isLoading) return;
+
+        const userMsg: Message = {
+            id: `user-${Date.now()}`,
+            role: 'user',
+            content: command,
+            timestamp: Date.now()
+        };
+
+        setMessages(prev => [...prev, userMsg]);
+        const currentCommand = command;
         setCommand('');
+        await onRunAgent(currentCommand);
+    };
+
+    const clearHistory = () => {
+        if (confirm("대화 기록을 모두 삭제하시겠습니까?")) {
+            setMessages([]);
+            localStorage.removeItem(STORAGE_KEY);
+        }
     };
 
     return (
@@ -67,17 +129,18 @@ export const AgentChat: React.FC<AgentChatProps> = ({ onRunAgent, isLoading, las
                             position: 'fixed',
                             bottom: '32px',
                             right: '32px',
-                            width: '420px',
+                            width: '450px',
                             zIndex: 100,
                         }}
                     >
                         <Card style={{
-                            maxHeight: '650px',
+                            maxHeight: '700px',
                             display: 'flex',
                             flexDirection: 'column',
                             overflow: 'hidden',
                             padding: 0,
                             borderRadius: 'var(--radius-lg)',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
                         }}>
                             {/* Header */}
                             <div style={{
@@ -86,8 +149,8 @@ export const AgentChat: React.FC<AgentChatProps> = ({ onRunAgent, isLoading, las
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                background: 'rgba(15, 23, 42, 0.03)',
-                                backdropFilter: 'blur(5px)'
+                                background: 'rgba(255, 255, 255, 0.8)',
+                                backdropFilter: 'blur(10px)'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                     <div style={{
@@ -103,108 +166,106 @@ export const AgentChat: React.FC<AgentChatProps> = ({ onRunAgent, isLoading, las
                                         <Bot size={20} />
                                     </div>
                                     <div>
-                                        <h3 style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-main)' }}>AI 배정 설계자</h3>
+                                        <h3 style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            AI 배정 에이전트
+                                            <Sparkles size={14} color="#f59e0b" />
+                                        </h3>
                                         <div style={{ fontSize: '0.75rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
-                                            온라인
+                                            데이터 분석 모드 활성화
                                         </div>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => setIsOpen(false)}
-                                    style={{
-                                        background: 'rgba(0,0,0,0.05)',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '50%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: 'var(--text-secondary)',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <X size={18} />
-                                </button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button onClick={clearHistory} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.75rem' }} title="대화 기록 삭제">
+                                        삭제
+                                    </button>
+                                    <button
+                                        onClick={() => setIsOpen(false)}
+                                        style={{
+                                            background: 'rgba(0,0,0,0.05)',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Body */}
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', minHeight: '300px', background: 'rgba(255,255,255,0.5)' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                    {/* Default Welcome Message */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', minHeight: '400px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                {/* Default Welcome */}
+                                <div style={{ display: 'flex', gap: '12px', maxWidth: '85%' }}>
+                                    <div style={{
+                                        background: 'white',
+                                        padding: '14px 18px',
+                                        borderRadius: '0 16px 16px 16px',
+                                        fontSize: '0.95rem',
+                                        lineHeight: '1.5',
+                                        boxShadow: 'var(--shadow-sm)',
+                                        border: '1px solid var(--border)'
+                                    }}>
+                                        안녕하세요! 인원 명단 분석과 배정 조건 설정을 도와드립니다. 명령어를 입력해주세요. (예: 성비 균형 있게, XX는 1조로 고정)
+                                    </div>
+                                </div>
+
+                                {/* Chat Messages */}
+                                {messages.map((msg) => (
                                     <motion.div
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        style={{ display: 'flex', gap: '12px', maxWidth: '85%' }}
+                                        key={msg.id}
+                                        initial={{ opacity: 0, y: 5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                                            gap: '12px'
+                                        }}
                                     >
                                         <div style={{
-                                            background: 'white',
+                                            maxWidth: '85%',
+                                            background: msg.role === 'user' ? 'var(--primary-gradient)' : 'white',
+                                            color: msg.role === 'user' ? 'white' : 'var(--text-main)',
                                             padding: '14px 18px',
-                                            borderRadius: '0 16px 16px 16px',
+                                            borderRadius: msg.role === 'user' ? '16px 16px 0 16px' : '0 16px 16px 16px',
                                             fontSize: '0.95rem',
-                                            lineHeight: '1.5',
-                                            boxShadow: '0 4px 15px -5px rgba(0,0,0,0.05)',
-                                            border: '1px solid var(--border)'
+                                            lineHeight: '1.6',
+                                            boxShadow: 'var(--shadow-sm)',
+                                            border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
+                                            whiteSpace: 'pre-line'
                                         }}>
-                                            반갑습니다! 배정 조건을 말씀해 주시면 데이터를 분석하여 최적의 결과를 제안해 드립니다. ✨
-                                        </div>
-                                    </motion.div>
-
-                                    {/* AI Reasoning Result */}
-                                    {lastRationale && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-                                        >
-                                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginLeft: '12px' }}>
-                                                AI Analysed Result
-                                            </div>
-                                            <div style={{
-                                                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                                                border: '1px solid rgba(59, 130, 246, 0.2)',
-                                                padding: '16px 20px',
-                                                borderRadius: '16px',
-                                                fontSize: '0.95rem',
-                                                lineHeight: '1.6',
-                                                whiteSpace: 'pre-line',
-                                                color: '#1e40af',
-                                                boxShadow: '0 4px 15px -5px rgba(59, 130, 246, 0.1)'
-                                            }}>
-                                                {lastRationale}
-                                            </div>
-
-                                            {logs && logs.length > 0 && (
+                                            {msg.content}
+                                            {msg.logs && msg.logs.length > 0 && (
                                                 <div style={{
-                                                    marginTop: '8px',
-                                                    background: 'rgba(0,0,0,0.02)',
-                                                    padding: '12px',
-                                                    borderRadius: '12px',
+                                                    marginTop: '12px',
+                                                    paddingTop: '12px',
+                                                    borderTop: '1px dashed rgba(0,0,0,0.1)',
                                                     fontSize: '0.8rem',
                                                     color: 'var(--text-secondary)',
-                                                    border: '1px dashed var(--border)'
+                                                    opacity: 0.8
                                                 }}>
-                                                    <div style={{ fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
-                                                        Execution Context
-                                                    </div>
-                                                    <ul style={{ listStyle: 'none', padding: 0, opacity: 0.8 }}>
-                                                        {logs.map((log, i) => <li key={i} style={{ marginBottom: '2px' }}>{log}</li>)}
-                                                    </ul>
+                                                    <div style={{ fontWeight: 700, marginBottom: '4px', fontSize: '0.7rem' }}>[분석 로그]</div>
+                                                    {msg.logs.map((log, i) => <div key={i}>• {log}</div>)}
                                                 </div>
                                             )}
-                                        </motion.div>
-                                    )}
-
-                                    {isLoading && (
-                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                            <Loader2 size={16} className="animate-spin" />
-                                            조건에 맞춰 인원을 배정하는 중...
                                         </div>
-                                    )}
-                                </div>
+                                    </motion.div>
+                                ))}
+
+                                {isLoading && (
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        <Loader2 size={16} className="animate-spin" />
+                                        <span>배정 알고리즘 연산 중...</span>
+                                    </div>
+                                )}
+                                <div id="chat-bottom" />
                             </div>
 
                             {/* Footer Input */}
@@ -214,13 +275,14 @@ export const AgentChat: React.FC<AgentChatProps> = ({ onRunAgent, isLoading, las
                                         className="input-field"
                                         value={command}
                                         onChange={(e) => setCommand(e.target.value)}
-                                        placeholder="명령어 입력 (예: 골고루 섞어줘)"
+                                        placeholder="요청 사항을 입력하세요..."
                                         disabled={isLoading}
                                         style={{
                                             paddingRight: '54px',
                                             height: '52px',
-                                            borderRadius: '26px',
-                                            fontSize: '1rem'
+                                            borderRadius: '12px',
+                                            fontSize: '1rem',
+                                            background: '#f1f5f9'
                                         }}
                                     />
                                     <button
@@ -228,19 +290,18 @@ export const AgentChat: React.FC<AgentChatProps> = ({ onRunAgent, isLoading, las
                                         disabled={isLoading || !command.trim()}
                                         style={{
                                             position: 'absolute',
-                                            right: '6px',
-                                            top: '6px',
-                                            width: '40px',
-                                            height: '40px',
-                                            borderRadius: '20px',
+                                            right: '8px',
+                                            top: '8px',
+                                            width: '36px',
+                                            height: '36px',
+                                            borderRadius: '8px',
                                             border: 'none',
                                             background: command.trim() ? 'var(--primary-gradient)' : 'var(--border)',
                                             color: 'white',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.2s'
+                                            justifyContent: 'center'
                                         }}
                                     >
                                         {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

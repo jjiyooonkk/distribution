@@ -18,21 +18,24 @@ Your mission is to analyze personnel data uploaded by the user and perfectly und
    - Full Assignment Table (JSON)
    - Assignment Rationale Report (Text)
 
+[Communication Language]
+- **Language**: You MUST generate the 'rationale' and 'logs' in **Korean**. Even if the user command is in English, the explanation should be in Korean for consistent reporting.
+
 [Output Format]
 Return a JSON object with the following structure:
 {
-  "rationale": "Detailed explanation of how the distribution was performed...",
+  "rationale": "배정 작업에 대한 상세한 한국어 설명...",
   "assignments": [
-    { "personId": "string", "teamId": "string", "reason": "optional reason for this specific person" }
+    { "personId": "string", "teamId": "string", "reason": "해당 인원의 배정 사유 (한국어)" }
   ],
-  "logs": ["Log entry 1", "Log entry 2"]
+  "logs": ["로그 항목 1", "로그 항목 2"]
 }
 `;
 
 export const GENERATE_DISTRIBUTION_PROMPT = (
-    personnelCount: number,
-    teamsCount: number,
-    userCommand: string
+  personnelCount: number,
+  teamsCount: number,
+  userCommand: string
 ) => `
 Context:
 - Total Personnel: ${personnelCount}

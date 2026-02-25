@@ -72,21 +72,48 @@ export default function NewProjectPage() {
     const handleReset = () => {
         if (confirm("모든 데이터가 초기화됩니다. 계속하시겠습니까?")) {
             localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('jinjjajal_agent_chat_history');
+            localStorage.removeItem('jinjjajal_constraints');
             window.location.reload();
         }
     };
 
+    const [constraints, setConstraints] = useState<{ id: string, text: string, priority: number }[]>([]);
+
+    // Load constraints from storage
+    useEffect(() => {
+        const saved = localStorage.getItem('jinjjajal_constraints');
+        if (saved) setConstraints(JSON.parse(saved));
+    }, []);
+
+    // Save constraints
+    useEffect(() => {
+        localStorage.setItem('jinjjajal_constraints', JSON.stringify(constraints));
+    }, [constraints]);
+
     const handleRunAgent = async (command: string) => {
         setIsAgentLoading(true);
         try {
+            // Add to constraints if not already there
+            if (!constraints.find(c => c.text === command)) {
+                setConstraints(prev => [...prev, { id: Date.now().toString(), text: command, priority: prev.length + 1 }]);
+            }
+
             const currentTeams = teams.map(t => ({
                 id: t.id,
                 name: t.name,
                 capacity: t.capacity
             }));
 
-            // Use real-time imported data if available
             const personnelToSend = importedData.length > 0 ? importedData : [];
+
+            // Include all constraints in the command, ordered by priority
+            const prioritizedCommands = constraints
+                .sort((a, b) => a.priority - b.priority)
+                .map(c => c.text)
+                .join('. ');
+
+            const fullCommand = prioritizedCommands ? `${prioritizedCommands}. 그리고 새 요청: ${command}` : command;
 
             const response = await fetch('/api/agent', {
                 method: 'POST',
@@ -94,9 +121,11 @@ export default function NewProjectPage() {
                 body: JSON.stringify({
                     personnel: personnelToSend,
                     teams: currentTeams,
-                    command
+                    command: fullCommand
                 })
             });
+
+            // ... rest of agent logic ...
 
             const data = await response.json();
 
@@ -280,6 +309,58 @@ export default function NewProjectPage() {
                                 <StepItem number={2} title="인원 명단 업로드" active={step === 2} completed={step > 2} />
                                 <StepItem number={3} title="결과 검토 및 확정" active={false} completed={false} />
                             </ul>
+
+                            {constraints.length > 0 && (
+                                <div style={{ marginTop: '32px' }}>
+                                    <div style={{ marginBottom: '16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                        우선순위 설정 (내림차순)
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {constraints.sort((a, b) => a.priority - b.priority).map((c, i) => (
+                                            <div key={c.id} style={{
+                                                background: 'var(--surface-hover)',
+                                                padding: '12px',
+                                                borderRadius: '8px',
+                                                fontSize: '0.85rem',
+                                                border: '1px solid var(--border)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '8px'
+                                            }}>
+                                                <span style={{ fontWeight: 600, color: 'var(--primary)', minWidth: '20px' }}>{i + 1}.</span>
+                                                <span style={{ flex: 1, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.text}</span>
+                                                <div style={{ display: 'flex', gap: '4px' }}>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (i === 0) return;
+                                                            const newConstraints = [...constraints];
+                                                            const temp = newConstraints[i].priority;
+                                                            newConstraints[i].priority = newConstraints[i - 1].priority;
+                                                            newConstraints[i - 1].priority = temp;
+                                                            setConstraints(newConstraints);
+                                                        }}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                                                    >
+                                                        ↑
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setConstraints(constraints.filter(curr => curr.id !== c.id));
+                                                        }}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)' }}
+                                                    >
+                                                        ×
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                                        * 위쪽에 위치할수록 배정 시 더 높은 우선순위로 관리됩니다.
+                                    </p>
+                                </div>
+                            )}
                         </Card>
                     </aside>
                 )}

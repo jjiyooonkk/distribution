@@ -59,8 +59,8 @@ export async function POST(req: Request) {
         // However, to be safe, we keep responseMimeType OFF for now and rely on prompt.
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash",
-            generationConfig: { responseMimeType: "application/json" }
-        }, { apiVersion: "v1beta" });
+            generationConfig: {} // responseMimeType removed for v1 stability
+        }, { apiVersion: "v1" });
 
         // Simplify data to reduce token usage
         const simplifiedPersonnel = (personnel as Personnel[]).map(p => ({

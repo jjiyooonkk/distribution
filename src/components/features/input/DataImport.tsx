@@ -274,29 +274,23 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     </div>
 
                     {/* Data Preview */}
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>미리보기 ({Math.min(5, data.length)} / {data.length})</h3>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>가져온 데이터 미리보기 ({Math.min(5, data.length)} / {data.length})</h3>
                     <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                                 <tr>
-                                    <th style={{ padding: '12px', textAlign: 'left' }}>이름</th>
-                                    <th style={{ padding: '12px', textAlign: 'left' }}>성별</th>
-                                    <th style={{ padding: '12px', textAlign: 'left' }}>이력</th>
-                                    {extraMappings.map(m => (
-                                        <th key={m.id} style={{ padding: '12px', textAlign: 'left' }}>{m.label || m.header || '(미지정)'}</th>
+                                    {headers.map((h, i) => (
+                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: (h === mapping.name || h === mapping.gender || h === mapping.history) ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                                            {h || `Column ${i + 1}`}
+                                        </th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {data.slice(0, 5).map((row, i) => (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <td style={{ padding: '12px' }}>{row[headers.indexOf(mapping.name)] || '-'}</td>
-                                        <td style={{ padding: '12px' }}>{row[headers.indexOf(mapping.gender)] || '-'}</td>
-                                        <td style={{ padding: '12px' }}>{row[headers.indexOf(mapping.history)] || '-'}</td>
-                                        {extraMappings.map(m => (
-                                            <td key={m.id} style={{ padding: '12px' }}>
-                                                {row[headers.indexOf(m.header)] || '-'}
-                                            </td>
+                                        {headers.map((_, hIdx) => (
+                                            <td key={hIdx} style={{ padding: '12px' }}>{row[hIdx] !== undefined ? String(row[hIdx]) : '-'}</td>
                                         ))}
                                     </tr>
                                 ))}

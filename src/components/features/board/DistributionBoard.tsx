@@ -96,7 +96,7 @@ function SortableItem({ id, person }: { id: string, person: Personnel }) {
 }
 
 // --- Droppable Container Component ---
-function DroppableContainer({ id, title, items, capacity }: { id: string, title: string, items: Personnel[], capacity: number }) {
+function DroppableContainer({ id, title, items = [], capacity }: { id: string, title: string, items?: Personnel[], capacity: number }) {
     const { setNodeRef } = useSortable({ id });
 
     const mCount = items.filter(p => p.gender === 'M').length;
@@ -185,6 +185,14 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
         ...initialTeams.reduce((acc, t) => ({ ...acc, [t.id]: t.members || [] }), {})
     });
 
+    // Props가 변경될 때 (Step 2 완료 등) 로컬 상태 동기화
+    useEffect(() => {
+        setItems({
+            'unassigned': unassigned,
+            ...initialTeams.reduce((acc, t) => ({ ...acc, [t.id]: t.members || [] }), {})
+        });
+    }, [initialTeams, unassigned]);
+
     const [isAgentLoading, setIsAgentLoading] = useState(false);
     const [agentRationale, setAgentRationale] = useState<string | undefined>(undefined);
     const [agentLogs, setAgentLogs] = useState<string[]>([]);
@@ -221,7 +229,10 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
 
     const findContainer = (id: string) => {
         if (id in items) return id;
-        return Object.keys(items).find((key) => items[key].find(p => p.id === id));
+        return Object.keys(items).find((key) => {
+            const list = items[key];
+            return Array.isArray(list) && list.find(p => p.id === id);
+        });
     };
 
     const handleDragStart = (event: DragStartEvent) => setActiveId(event.active.id as string);
@@ -249,8 +260,11 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
 
     const handleDragEnd = () => setActiveId(null);
 
-    const allAssigned = Object.entries(items).flatMap(([teamId, people]) =>
-        people.map(p => ({ ...p, teamName: teamId === 'unassigned' ? '미배정' : initialTeams.find(t => t.id === teamId)?.name || '알 수 없음' }))
+    const allAssigned = Object.entries(items).flatMap(([teamId, people = []]) =>
+        (people || []).map(p => ({
+            ...p,
+            teamName: teamId === 'unassigned' ? '미배정' : initialTeams.find(t => t.id === teamId)?.name || '알 수 없음'
+        }))
     );
 
     return (
@@ -353,9 +367,9 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                     ))
                                 ) : (
                                     ['unassigned', ...initialTeams.map(t => t.id)].map((teamId, idx) => {
-                                        const teamItems = items[teamId];
-                                        const teamName = teamId === 'unassigned' ? '미배정 인원' : initialTeams.find(t => t.id === teamId)?.name;
-                                        const mCount = teamItems.filter(p => p.gender === 'M').length;
+                                        const teamItems = items[teamId] || [];
+                                        const teamName = teamId === 'unassigned' ? '미배정 인원' : initialTeams.find(t => t.id === teamId)?.name || '알 수 없는 팀';
+                                        const mCount = teamItems.filter(p => p && p.gender === 'M').length;
                                         const fCount = teamItems.length - mCount;
                                         return (
                                             <tr key={teamId} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'transparent' : 'rgba(15, 23, 42, 0.02)' }}>

@@ -6,7 +6,7 @@ import { DataImport } from '@/components/features/input/DataImport';
 import { Card } from '@/components/ui/Card';
 import { TeamConfig, Personnel } from '@/types';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { distributePersonnel } from '@/lib/distributor';
 import { DistributionBoard } from '@/components/features/board/DistributionBoard';
 import { FinalPreviewModal } from '@/components/features/output/FinalPreviewModal';
@@ -94,7 +94,6 @@ export default function NewProjectPage() {
     const handleRunAgent = async (command: string) => {
         setIsAgentLoading(true);
         try {
-            // Add to constraints if not already there
             if (!constraints.find(c => c.text === command)) {
                 setConstraints(prev => [...prev, { id: Date.now().toString(), text: command, priority: prev.length + 1 }]);
             }
@@ -106,8 +105,6 @@ export default function NewProjectPage() {
             }));
 
             const personnelToSend = importedData.length > 0 ? importedData : [];
-
-            // Include all constraints in the command, ordered by priority
             const prioritizedCommands = constraints
                 .sort((a, b) => a.priority - b.priority)
                 .map(c => c.text)
@@ -125,8 +122,6 @@ export default function NewProjectPage() {
                 })
             });
 
-            // ... rest of agent logic ...
-
             const data = await response.json();
 
             if (!response.ok) {
@@ -142,24 +137,8 @@ export default function NewProjectPage() {
                 setAgentLogs(data.logs || []);
             }
 
-            // Apply assignments immediately to local state if present
             if (data.assignments && data.assignments.length > 0) {
-                const newTeams = [...teams];
-                const assignmentsMap = new Map<string, string>(); // personId -> teamId
-
-                data.assignments.forEach((a: any) => {
-                    assignmentsMap.set(a.personId, a.teamId);
-                });
-
-                // Clear existing members in teams first to avoid duplicates? 
-                // Or just distribute based on this map.
-                // We will store this map and apply it when "Next" is clicked OR apply it now?
-                // Applying now to 'teams' structure is hard because we are in Step 2 (DataImport).
-                // Step 2 doesn't show the board.
-                // But we can SAVE it so Step 3 starts with it.
                 setAgentAssignments(data.assignments);
-
-                // Also update the rationale to confirm
                 setAgentRationale(prev => (prev || "") + "\n\n✅ 배정 결과가 저장되었습니다. '다음' 버튼을 누르면 인원 분배 결과에 반영됩니다.");
             }
 
@@ -174,32 +153,25 @@ export default function NewProjectPage() {
     const handleFinalConfirm = () => {
         setIsModalOpen(false);
         alert("Distribution Approved! Notifications sent (Simulated). Redirecting to Dashboard...");
-        // In real app: router.push('/')
     };
 
     const handleTeamConfigComplete = (config: TeamConfig[]) => {
         setTeams(config);
         setStep(2);
-        // TODO: Proceed to Data Import Step
-        console.log("Teams config:", config);
     };
 
     const handleDataImportComplete = (importedData: Personnel[]) => {
-        // If Agent has already assigned some people, we respect that.
         let initialTeams = [...teams];
         let remainingPersonnel = [...importedData];
 
         if (agentAssignments.length > 0) {
-            // Apply Agent Assignments
             const teamMap = new Map<string, Personnel[]>();
             initialTeams.forEach(t => teamMap.set(t.id, []));
-
             const assignedIds = new Set<string>();
 
             agentAssignments.forEach(assign => {
                 const person = importedData.find(p => p.id === assign.personId);
                 const teamExists = teamMap.has(assign.teamId);
-
                 if (person && teamExists) {
                     teamMap.get(assign.teamId)?.push({
                         ...person,
@@ -209,57 +181,24 @@ export default function NewProjectPage() {
                 }
             });
 
-            // Update teams with assigned members
             initialTeams = initialTeams.map(t => ({
                 ...t,
                 members: teamMap.get(t.id) || []
             }));
-
-            // Filter out assigned people
             remainingPersonnel = importedData.filter(p => !assignedIds.has(p.id));
         }
 
-        // Run heuristic distribution for ANYONE NOT YET ASSIGNED
-        // We pass the 'initialTeams' which now effectively have skewed 'current' counts.
-        // distributePersonnel needs to be smart enough to append?
-        // Let's assume distributePersonnel creates NEW distribution from scratch usually.
-        // We should verify distributePersonnel.ts. 
-        // For now, let's assume we can merge.
-        // Actually, distributePersonnel might reset members. 
-        // Let's modify distributePersonnel invocation logic to treating already assigned as "locked"?
-        // Simpler: Just put remaining into teams using the same function but passing the 'filled' teams?
-        // We will trust distributePersonnel to fill empty slots.
-
-        let finalUnassigned: Personnel[] = [];
-
         if (remainingPersonnel.length > 0) {
-            const result = distributePersonnel(remainingPersonnel, initialTeams);
-            // Note: distributePersonnel might expect empty teams. 
-            // If we pass teams with members, does it append? 
-            // Most heuristic functions start with 0. 
-            // We'll rely on result.teams having the NEW members + OLD members?
-            // Let's assume result.teams replaces initialTeams. 
-            // This implies distributePersonnel needs to know about existing members to balance efficiently.
-
-            // Simplification: We blindly append result to existing?
-            // No, distributing remaining 50 people into teams that already have 50 people needs context.
-
-            // Since we can't easily change `distributePersonnel` signature right here without checking it, 
-            // we will use the Agent's result as PRIMARY.
-            // Any remaining are just put into "unassigned" for manual drag/drop? 
-            // OR we run distributePersonnel on them.
-
             const distribution = distributePersonnel(remainingPersonnel, initialTeams);
-            initialTeams = distribution.teams; // Hopefully it preserves/appends
-            finalUnassigned = distribution.unassigned;
+            initialTeams = distribution.teams;
+            setUnassigned(distribution.unassigned);
             setLogs([...(agentLogs.length > 0 ? ["[AI] 에이전트 배정 적용 완료"] : []), ...distribution.logs]);
         } else {
-            finalUnassigned = [];
+            setUnassigned([]);
             setLogs(agentLogs);
         }
 
         setTeams(initialTeams);
-        setUnassigned(finalUnassigned);
         setStep(3);
     };
 
@@ -280,8 +219,7 @@ export default function NewProjectPage() {
                     color: 'var(--text-secondary)',
                     marginBottom: '8px',
                     fontSize: '0.9rem',
-                    fontWeight: 500,
-                    transition: 'color 0.2s'
+                    fontWeight: 500
                 }} className="hover-link">
                     <ArrowLeft size={16} /> 대시보드로 돌아가기
                 </Link>
@@ -296,9 +234,8 @@ export default function NewProjectPage() {
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>효율적이고 공정한 인원 분배를 위한 스마트 워크스페이스</p>
             </header>
 
-            <div style={{ display: step === 3 ? 'block' : 'grid', gridTemplateColumns: '320px 1fr', gap: '48px' }}>
-                {/* Sidebar - Hide if step 3 */}
-                {step !== 3 && (
+            <div style={{ display: step === 3 ? 'block' : 'grid', gridTemplateColumns: (!projectName || step === 3) ? '1fr' : '320px 1fr', gap: '48px' }}>
+                {step !== 3 && projectName && (
                     <aside>
                         <Card style={{ position: 'sticky', top: '24px', padding: '32px' }}>
                             <div style={{ marginBottom: '24px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
@@ -309,6 +246,11 @@ export default function NewProjectPage() {
                                 <StepItem number={2} title="인원 명단 업로드" active={step === 2} completed={step > 2} />
                                 <StepItem number={3} title="결과 검토 및 확정" active={false} completed={false} />
                             </ul>
+
+                            <div style={{ marginTop: '32px', padding: '12px', background: 'rgba(34, 197, 94, 0.05)', borderRadius: '12px', border: '1px solid rgba(34, 197, 94, 0.2)', display: 'flex', alignItems: 'center', gap: '8px', color: '#16a34a', fontSize: '0.8rem', fontWeight: 600 }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
+                                보관함에 자동 저장됨
+                            </div>
 
                             {constraints.length > 0 && (
                                 <div style={{ marginTop: '32px' }}>
@@ -331,170 +273,105 @@ export default function NewProjectPage() {
                                                 <span style={{ fontWeight: 600, color: 'var(--primary)', minWidth: '20px' }}>{i + 1}.</span>
                                                 <span style={{ flex: 1, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.text}</span>
                                                 <div style={{ display: 'flex', gap: '4px' }}>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (i === 0) return;
-                                                            const newConstraints = [...constraints];
-                                                            const temp = newConstraints[i].priority;
-                                                            newConstraints[i].priority = newConstraints[i - 1].priority;
-                                                            newConstraints[i - 1].priority = temp;
-                                                            setConstraints(newConstraints);
-                                                        }}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
-                                                    >
-                                                        ↑
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setConstraints(constraints.filter(curr => curr.id !== c.id));
-                                                        }}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)' }}
-                                                    >
-                                                        ×
-                                                    </button>
+                                                    <button onClick={() => {
+                                                        if (i === 0) return;
+                                                        const newConstraints = [...constraints];
+                                                        const temp = newConstraints[i].priority;
+                                                        newConstraints[i].priority = newConstraints[i - 1].priority;
+                                                        newConstraints[i - 1].priority = temp;
+                                                        setConstraints(newConstraints);
+                                                    }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>↑</button>
+                                                    <button onClick={() => setConstraints(constraints.filter(curr => curr.id !== c.id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)' }}>×</button>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-                                        * 위쪽에 위치할수록 배정 시 더 높은 우선순위로 관리됩니다.
-                                    </p>
                                 </div>
                             )}
                         </Card>
                     </aside>
                 )}
 
-                {/* Main Content Area */}
-                <main className="animate-fade-in">
-                    <div style={{ display: step === 1 ? 'block' : 'none' }}>
-                        <div>
-                            {/* Project Name Input */}
-                            <div style={{ marginBottom: '40px' }}>
-                                <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-secondary)' }}>프로젝트 이름</label>
-                                <Input
-                                    placeholder="예: 2024년 신입생 오리엔테이션 조 편성"
-                                    value={projectName}
-                                    onChange={(e) => setProjectName(e.target.value)}
-                                    style={{ fontSize: '1.25rem', padding: '16px 20px', borderRadius: 'var(--radius-md)' }}
-                                />
+                <main className="animate-fade-in" style={{ gridColumn: (step === 3 || !projectName) ? 'span 2' : 'auto' }}>
+                    {!projectName && (
+                        <div style={{ maxWidth: '600px', margin: '80px auto', textAlign: 'center' }}>
+                            <div className="glass-panel" style={{ padding: '64px', borderRadius: '32px' }}>
+                                <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'var(--primary-gradient)', margin: '0 auto 32px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 20px 40px -10px rgba(99, 102, 241, 0.4)' }}>
+                                    <Plus size={40} color="white" />
+                                </div>
+                                <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '16px' }}>새 프로젝트 만들기</h1>
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '40px', fontSize: '1.1rem' }}>먼저 프로젝트의 이름을 입력해 주세요.<br />입력 즉시 보관함에 안전하게 저장됩니다.</p>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <Input autoFocus id="initial-project-name" placeholder="예: 2024년 신입생 오리엔테이션 조 편성" style={{ fontSize: '1.25rem', padding: '20px 24px', borderRadius: '16px', textAlign: 'center' }} onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const val = (document.getElementById('initial-project-name') as HTMLInputElement).value;
+                                            if (val.trim()) setProjectName(val);
+                                        }
+                                    }} />
+                                </div>
+                                <Button variant="primary" style={{ width: '100%', padding: '20px', borderRadius: '16px', fontSize: '1.1rem', fontWeight: 700 }} onClick={() => {
+                                    const val = (document.getElementById('initial-project-name') as HTMLInputElement).value;
+                                    if (val.trim()) setProjectName(val);
+                                }}>프로젝트 생성하고 계속하기</Button>
                             </div>
-
-                            <div style={{ marginBottom: '32px' }}>
-                                <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 1. 배정 단위(팀) 정의</h2>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>
-                                    인원을 분배할 그룹, 팀 또는 장소를 설정하세요.
-                                    자동 생성 기능을 사용하거나 수동으로 추가할 수 있습니다.
-                                </p>
-                            </div>
-                            <TeamConfiguration
-                                initialTeams={teams}
-                                onComplete={handleTeamConfigComplete}
-                            />
                         </div>
-                    </div>
+                    )}
 
-                    <div style={{ display: step === 2 ? 'block' : 'none' }}>
-                        <div>
-                            <div style={{ marginBottom: '32px' }}>
-                                <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 2. 데이터 가져오기</h2>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>
-                                    인원 명단(Excel/CSV)을 업로드하세요.
-                                    <br />
-                                    <span style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: 600 }}>
-                                        💡 특히 '과거 이력' 컬럼을 매핑하면 연속 방문 방지 조건을 적용할 수 있습니다.
-                                    </span>
-                                </p>
-                            </div>
-
-                            <DataImport
-                                onComplete={handleDataImportComplete}
-                                onDataUpdate={setImportedData}
-                                onBack={() => setStep(1)}
-                            />
-
-                            {/* Enable AI Agent in Step 2 */}
-                            <AgentChat
-                                onRunAgent={handleRunAgent}
-                                isLoading={isAgentLoading}
-                                lastRationale={agentRationale}
-                                logs={agentLogs}
-                            />
-                        </div>
-                    </div>
-
-                    <div style={{ display: step === 3 ? 'block' : 'none' }}>
-                        <div className="animate-in fade-in zoom-in duration-500">
-                            <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
+                    {projectName && (
+                        <>
+                            <div style={{ display: step === 1 ? 'block' : 'none' }}>
                                 <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                                        <Button variant="ghost" onClick={() => setStep(2)} style={{ padding: '4px 8px', height: 'auto', fontSize: '0.85rem' }}>
-                                            <ArrowLeft size={14} style={{ marginRight: '4px' }} /> 이전 단계로
-                                        </Button>
+                                    <div style={{ marginBottom: '40px' }}>
+                                        <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Project Title</label>
+                                        <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} style={{ fontSize: '1.75rem', fontWeight: 800, padding: '0', background: 'none', border: 'none', borderBottom: '1px solid transparent' }} />
                                     </div>
-                                    <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '8px' }}>Step 3. 최종 분배 현황판</h2>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
-                                        배정 결과를 검토하세요. 드래그 앤 드롭으로 인원을 자유롭게 이동할 수 있습니다.
-                                        {unassigned.length > 0 && <span style={{ color: 'var(--error)', marginLeft: '12px', fontWeight: 600 }}>⚠️ {unassigned.length}명 미배정</span>}
-                                    </p>
+                                    <div style={{ marginBottom: '32px' }}>
+                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 1. 배정 단위(팀) 정의</h2>
+                                        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>인원을 분배할 그룹, 팀 또는 장소를 설정하세요.</p>
+                                    </div>
+                                    <TeamConfiguration initialTeams={teams} onComplete={handleTeamConfigComplete} />
                                 </div>
-                                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--border)' }}>
-                                    제약 로그: <strong>{logs.length}건</strong>
-                                </div>
-                            </header>
+                            </div>
 
-                            <DistributionBoard
-                                initialTeams={teams}
-                                unassigned={unassigned}
-                                onExport={() => setIsModalOpen(true)}
-                            />
-                        </div>
-                    </div>
+                            <div style={{ display: step === 2 ? 'block' : 'none' }}>
+                                <div>
+                                    <div style={{ marginBottom: '32px' }}>
+                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 2. 데이터 가져오기</h2>
+                                        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>인원 명단(Excel/CSV)을 업로드하세요.</p>
+                                    </div>
+                                    <DataImport onComplete={handleDataImportComplete} onDataUpdate={setImportedData} onBack={() => setStep(1)} />
+                                    <AgentChat onRunAgent={handleRunAgent} isLoading={isAgentLoading} lastRationale={agentRationale} logs={agentLogs} />
+                                </div>
+                            </div>
+
+                            <div style={{ display: step === 3 ? 'block' : 'none' }}>
+                                <div className="animate-in fade-in zoom-in duration-500">
+                                    <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
+                                        <div>
+                                            <Button variant="ghost" onClick={() => setStep(2)} style={{ padding: '0', height: 'auto', marginBottom: '8px' }}><ArrowLeft size={14} /> 이전 단계로</Button>
+                                            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Step 3. 최종 분배 현황판</h2>
+                                        </div>
+                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>제약 로그: <strong>{logs.length}건</strong></div>
+                                    </header>
+                                    <DistributionBoard initialTeams={teams} unassigned={unassigned} onExport={() => setIsModalOpen(true)} />
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </main>
             </div>
-            <FinalPreviewModal
-                isOpen={isModalOpen}
-                teams={teams}
-                onClose={() => setIsModalOpen(false)}
-                onConfirm={handleFinalConfirm}
-            />
+            <FinalPreviewModal isOpen={isModalOpen} teams={teams} onClose={() => setIsModalOpen(false)} onConfirm={handleFinalConfirm} />
         </div>
     );
 }
 
 const StepItem = ({ number, title, active, completed }: { number: number, title: string, active: boolean, completed: boolean }) => {
     return (
-        <li style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-            opacity: active || completed ? 1 : 0.4,
-            transition: 'all 0.3s ease',
-            transform: active ? 'translateX(8px)' : 'none'
-        }}>
-            <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                background: active ? 'var(--primary-gradient)' : (completed ? 'var(--success)' : 'white'),
-                border: active || completed ? 'none' : '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                color: active || completed ? 'white' : 'var(--text-muted)',
-                boxShadow: active ? '0 10px 15px -3px rgba(15, 23, 42, 0.2)' : 'none'
-            }}>
+        <li style={{ display: 'flex', alignItems: 'center', gap: '16px', opacity: active || completed ? 1 : 0.4 }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: active ? 'var(--primary-gradient)' : (completed ? 'var(--success)' : 'white'), border: active || completed ? 'none' : '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: active || completed ? 'white' : 'var(--text-muted)' }}>
                 {completed ? '✓' : number}
             </div>
-            <span style={{
-                fontWeight: active ? 700 : 500,
-                fontSize: '1.05rem',
-                color: active ? 'var(--text-main)' : 'var(--text-secondary)'
-            }}>
-                {title}
-            </span>
+            <span style={{ fontWeight: active ? 700 : 500, color: active ? 'var(--text-main)' : 'var(--text-secondary)' }}>{title}</span>
         </li>
     );
 }
-

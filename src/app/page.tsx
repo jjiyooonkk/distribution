@@ -76,8 +76,10 @@ export default function Home() {
         {/* Create New Project Card */}
         <div style={{ background: 'var(--primary-gradient)', borderRadius: '24px', padding: '2px' }}>
           <Link href="/project/new" onClick={() => {
-            // If they are specifically starting "new" but one exists? 
-            // We could add a reset logic here but let's let the NewProjectPage handle restore.
+            // 새 프로젝트를 시작할 때 기존 드래프트 데이터를 명확히 삭제
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('jinjjajal_agent_chat_history');
+            localStorage.removeItem('jinjjajal_constraints');
           }} style={{ textDecoration: 'none' }}>
             <div style={{
               background: 'white',

@@ -161,7 +161,8 @@ export default function NewProjectPage() {
     };
 
     const handleDataImportComplete = (importedData: Personnel[]) => {
-        let initialTeams = [...teams];
+        // 기존 팀 배정 인원 초기화 (데이터가 바뀌었을 수 있으므로 항상 최신 importedData 기준으로 재배정)
+        let initialTeams: TeamConfig[] = teams.map(t => ({ ...t, members: [] }));
         let remainingPersonnel = [...importedData];
 
         if (agentAssignments.length > 0) {

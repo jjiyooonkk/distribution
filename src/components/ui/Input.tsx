@@ -17,8 +17,7 @@ export const Input: React.FC<InputProps> = ({ label, error, className, ...props 
                 </label>
             )}
             <input
-                // 핵심: NaN 방어 로직
-                value={value === undefined || (typeof value === 'number' && Number.isNaN(value)) ? "" : value}
+                {...(value !== undefined ? { value: (typeof value === 'number' && Number.isNaN(value)) ? "" : value } : {})}
                 className={`input-field ${className || ''}`}
                 style={{
                     padding: '8px 12px',
@@ -29,7 +28,7 @@ export const Input: React.FC<InputProps> = ({ label, error, className, ...props 
                     color: 'var(--text-primary)',
                     ...style
                 }}
-                {...(restProps as any)}
+                {...restProps}
             />
             {error && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--error)' }}>

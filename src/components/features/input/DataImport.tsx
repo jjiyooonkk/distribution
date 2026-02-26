@@ -17,7 +17,6 @@ type ColumnMapping = {
     name: string;
     gender: string;
     history: string;
-    tags: string;
 };
 
 type ExtraMapping = {
@@ -33,8 +32,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
     const [mapping, setMapping] = useState<ColumnMapping>({
         name: '',
         gender: '',
-        history: '',
-        tags: ''
+        history: ''
     });
     const [extraMappings, setExtraMappings] = useState<ExtraMapping[]>([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -69,7 +67,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     if (lower.includes('name') || lower.includes('이름')) newMapping.name = h;
                     else if (lower.includes('gender') || lower.includes('성별')) newMapping.gender = h;
                     else if (lower.includes('history') || lower.includes('이력') || lower.includes('실습')) newMapping.history = h;
-                    else if (lower.includes('tag') || lower.includes('특이') || lower.includes('비고')) newMapping.tags = h;
                 });
                 setMapping(newMapping);
             }
@@ -115,11 +112,8 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
         const nameIdx = headers.indexOf(mapping.name);
         const genderIdx = headers.indexOf(mapping.gender);
         const historyIdx = headers.indexOf(mapping.history);
-        const tagsIdx = headers.indexOf(mapping.tags);
-
         return data.map((row, idx) => {
             const historyRaw = historyIdx >= 0 ? String(row[historyIdx] || '') : '';
-            const tagsRaw = tagsIdx >= 0 ? String(row[tagsIdx] || '') : '';
 
             const genderVal = row[genderIdx];
             const isMale = String(genderVal).trim().toUpperCase().startsWith('M') || String(genderVal).trim() === '남';
@@ -129,7 +123,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 name: row[nameIdx],
                 gender: (isMale ? 'M' : 'F') as 'M' | 'F',
                 history: historyRaw.split(',').map(s => s.trim()).filter(Boolean),
-                tags: tagsRaw.split(',').map(s => s.trim()).filter(Boolean),
+                tags: [],
                 attributes: extraMappings.reduce((acc, m) => {
                     const idx = headers.indexOf(m.header);
                     const finalKey = m.label || m.header;
@@ -212,8 +206,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                         {[
                             { label: '이름 (Name)', key: 'name', req: true },
                             { label: '성별 (Gender)', key: 'gender', req: true },
-                            { label: '과거 이력 (History)', key: 'history', req: false },
-                            { label: '비고/태그 (Note)', key: 'tags', req: false }
+                            { label: '과거 이력 (History)', key: 'history', req: false }
                         ].map((field) => (
                             <div key={field.key}>
                                 <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -291,7 +284,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                                     <th style={{ padding: '12px', textAlign: 'left' }}>이름</th>
                                     <th style={{ padding: '12px', textAlign: 'left' }}>성별</th>
                                     <th style={{ padding: '12px', textAlign: 'left' }}>이력</th>
-                                    <th style={{ padding: '12px', textAlign: 'left' }}>태그</th>
                                     {extraMappings.map(m => (
                                         <th key={m.id} style={{ padding: '12px', textAlign: 'left' }}>{m.label || m.header || '(미지정)'}</th>
                                     ))}
@@ -303,7 +295,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                                         <td style={{ padding: '12px' }}>{row[headers.indexOf(mapping.name)] || '-'}</td>
                                         <td style={{ padding: '12px' }}>{row[headers.indexOf(mapping.gender)] || '-'}</td>
                                         <td style={{ padding: '12px' }}>{row[headers.indexOf(mapping.history)] || '-'}</td>
-                                        <td style={{ padding: '12px' }}>{row[headers.indexOf(mapping.tags)] || '-'}</td>
                                         {extraMappings.map(m => (
                                             <td key={m.id} style={{ padding: '12px' }}>
                                                 {row[headers.indexOf(m.header)] || '-'}

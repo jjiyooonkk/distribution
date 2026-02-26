@@ -127,7 +127,7 @@ export default function NewProjectPage() {
             if (!response.ok) {
                 const errorMsg = data.details || data.error || "Server Error";
                 if (response.status === 429) {
-                    throw new Error("Billing Quota Exceeded. Please check API Key.");
+                    throw new Error("AI 호출 할당량(무료 버전)을 초과했습니다. 약 1분 후 다시 시도해 주세요.");
                 }
                 throw new Error(errorMsg);
             }

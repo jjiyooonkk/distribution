@@ -25,7 +25,10 @@ import { TeamConfig, Personnel } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AgentChat } from './AgentChat';
-import { LayoutGrid, List, Users as UsersIcon, RotateCcw, Download } from 'lucide-react';
+import { LayoutGrid, List, Users as UsersIcon, RotateCcw, Download, ChevronDown, FileText, FileSpreadsheet, FileJson } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 // --- Sortable Item Component ---
 function SortableItem({ id, person }: { id: string, person: Personnel }) {
@@ -260,6 +263,8 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
 
     const handleDragEnd = () => setActiveId(null);
 
+    const [showExportMenu, setShowExportMenu] = useState(false);
+
     const allAssigned = Object.entries(items).flatMap(([teamId, people = []]) =>
         (people || []).map(p => ({
             ...p,
@@ -273,6 +278,65 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
         allAssigned.flatMap(p => Object.keys(p.attributes || {}))
     ));
 
+    const getExportData = () => {
+        return [...allAssigned].sort((a, b) => a.teamSortIndex - b.teamSortIndex || a.name.localeCompare(b.name, 'ko'))
+            .map(p => {
+                const base = {
+                    '배정된 팀': p.teamName,
+                    '이름': p.name,
+                    '성별': p.gender === 'M' ? '남' : '여',
+                };
+                attributeKeys.forEach(key => {
+                    (base as any)[key] = p.attributes?.[key] || '-';
+                });
+                (base as any)['비고'] = p.history?.join(', ') || '';
+                return base;
+            });
+    };
+
+    const exportToExcel = () => {
+        const data = getExportData();
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Distribution_Results");
+        XLSX.writeFile(wb, `Distribution_Result_${new Date().toISOString().split('T')[0]}.xlsx`);
+        setShowExportMenu(false);
+    };
+
+    const exportToCSV = () => {
+        const data = getExportData();
+        const ws = XLSX.utils.json_to_sheet(data);
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Distribution_Result_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setShowExportMenu(false);
+    };
+
+    const exportToPDF = () => {
+        const doc = new jsPDF() as any;
+        const data = getExportData();
+        const headers = Object.keys(data[0]);
+        const body = data.map(item => headers.map(h => item[h as keyof typeof item]));
+
+        doc.autoTable({
+            head: [headers],
+            body: body,
+            theme: 'grid',
+            headStyles: { fillColor: [99, 102, 241], textColor: 255 },
+            styles: { font: 'helvetica', fontSize: 8 },
+        });
+
+        doc.save(`Distribution_Result_${new Date().toISOString().split('T')[0]}.pdf`);
+        setShowExportMenu(false);
+    };
+
     return (
         <div style={{ height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -282,13 +346,39 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                     <ViewButton active={viewMode === 'team'} onClick={() => setViewMode('team')} icon={<UsersIcon size={18} />} label="팀별 리스트" />
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', position: 'relative' }}>
                     <Button variant="secondary" onClick={() => window.location.reload()}>
                         <RotateCcw size={18} /> 초기화
                     </Button>
-                    <Button onClick={onExport}>
-                        <Download size={18} /> 확정 및 내보내기
-                    </Button>
+                    <div style={{ position: 'relative' }}>
+                        <Button onClick={() => setShowExportMenu(!showExportMenu)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Download size={18} /> 확정 및 내보내기 <ChevronDown size={14} />
+                        </Button>
+                        {showExportMenu && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                marginTop: '8px',
+                                background: 'white',
+                                borderRadius: '12px',
+                                boxShadow: 'var(--shadow-lg)',
+                                border: '1px solid var(--border)',
+                                zIndex: 100,
+                                minWidth: '180px',
+                                padding: '8px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px'
+                            }}>
+                                <ExportMenuItem onClick={exportToExcel} icon={<FileSpreadsheet size={16} />} label="Excel (.xlsx) 다운로드" />
+                                <ExportMenuItem onClick={exportToCSV} icon={<FileText size={16} />} label="CSV (.csv) 다운로드" />
+                                <ExportMenuItem onClick={exportToPDF} icon={<FileJson size={16} />} label="PDF (.pdf) 다운로드" />
+                                <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+                                <ExportMenuItem onClick={onExport} icon={<Download size={16} />} label="전체 배정 확정" highlight />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -432,6 +522,32 @@ const Th = ({ children, style }: { children: React.ReactNode, style?: React.CSSP
 
 const Td = ({ children, style }: { children: React.ReactNode, style?: React.CSSProperties }) => (
     <td style={{ ...style }}>{children}</td>
+);
+
+const ExportMenuItem = ({ onClick, icon, label, highlight }: { onClick: () => void, icon: React.ReactNode, label: string, highlight?: boolean }) => (
+    <button
+        onClick={onClick}
+        style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 12px',
+            width: '100%',
+            textAlign: 'left',
+            background: highlight ? 'var(--primary-gradient)' : 'transparent',
+            color: highlight ? 'white' : 'var(--text-main)',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            transition: 'all 0.2s'
+        }}
+        className="hover-item"
+    >
+        {icon}
+        {label}
+    </button>
 );
 
 const ViewButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (

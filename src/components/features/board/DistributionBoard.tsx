@@ -281,8 +281,9 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     const getExportData = () => {
         return [...allAssigned].sort((a, b) => {
             if (a.teamSortIndex !== b.teamSortIndex) return a.teamSortIndex - b.teamSortIndex;
-            const yearA = parseInt(String(a.attributes?.['학번'] || '9999').replace(/[^0-9]/g, '')) || 9999;
-            const yearB = parseInt(String(b.attributes?.['학번'] || '9999').replace(/[^0-9]/g, '')) || 9999;
+            const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
+            const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+            const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
             if (yearA !== yearB) return yearA - yearB;
             return a.name.localeCompare(b.name, 'ko');
         })
@@ -439,15 +440,17 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                     ? [...allAssigned].sort((a, b) => {
                                         if (a.teamSortIndex !== b.teamSortIndex) return a.teamSortIndex - b.teamSortIndex;
 
-                                        const yearA = parseInt(String(a.attributes?.['학번'] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                        const yearB = parseInt(String(b.attributes?.['학번'] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                        const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
+                                        const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                        const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
 
                                         if (yearA !== yearB) return yearA - yearB;
                                         return a.name.localeCompare(b.name, 'ko');
                                     })
                                     : [...allAssigned].sort((a, b) => {
-                                        const yearA = parseInt(String(a.attributes?.['학번'] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                        const yearB = parseInt(String(b.attributes?.['학번'] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                        const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
+                                        const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                        const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
                                         if (yearA !== yearB) return yearA - yearB;
                                         return a.name.localeCompare(b.name, 'ko');
                                     })

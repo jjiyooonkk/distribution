@@ -320,42 +320,68 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', backgroundColor: 'white' }}>
                             <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
                                 <tr>
-                                    <Th style={ExcelHeaderStyle}>배정된 팀</Th>
-                                    <Th style={ExcelHeaderStyle}>이름</Th>
-                                    <Th style={ExcelHeaderStyle}>성별</Th>
-                                    {attributeKeys.map(key => (
-                                        <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
-                                    ))}
+                                    {viewMode === 'list' ? (
+                                        <>
+                                            <Th style={ExcelHeaderStyle}>이름</Th>
+                                            <Th style={ExcelHeaderStyle}>성별</Th>
+                                            {attributeKeys.map(key => (
+                                                <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
+                                            ))}
+                                            <Th style={ExcelHeaderStyle}>배정된 팀</Th>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Th style={ExcelHeaderStyle}>배정된 팀</Th>
+                                            <Th style={ExcelHeaderStyle}>이름</Th>
+                                            <Th style={ExcelHeaderStyle}>성별</Th>
+                                            {attributeKeys.map(key => (
+                                                <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
+                                            ))}
+                                        </>
+                                    )}
                                     <Th style={ExcelHeaderStyle}>비고(이력)</Th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {(viewMode === 'team'
-                                    ? [...allAssigned].sort((a, b) => a.teamSortIndex - b.teamSortIndex || a.name.localeCompare(b.name))
-                                    : allAssigned
+                                    ? [...allAssigned].sort((a, b) => a.teamSortIndex - b.teamSortIndex || a.name.localeCompare(b.name, 'ko'))
+                                    : [...allAssigned].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
                                 ).map((p, idx) => (
                                     <tr key={p.id} style={{
                                         borderBottom: '1px solid #e2e8f0',
                                         background: p.teamName === '미배정' ? '#fff1f2' : (idx % 2 === 0 ? 'white' : '#fcfcfc')
                                     }}>
-                                        <Td style={ExcelCellStyle}>
-                                            <span style={{
-                                                fontWeight: 800,
-                                                color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)',
-                                            }}>{p.teamName}</span>
-                                        </Td>
-                                        <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>{p.name}</Td>
-                                        <Td style={ExcelCellStyle}>
-                                            <span style={{
-                                                color: p.gender === 'M' ? '#2563eb' : '#db2777',
-                                                fontWeight: 600
-                                            }}>{p.gender === 'M' ? '남' : '여'}</span>
-                                        </Td>
-                                        {attributeKeys.map(key => (
-                                            <Td key={key} style={ExcelCellStyle}>
-                                                {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
-                                            </Td>
-                                        ))}
+                                        {viewMode === 'list' ? (
+                                            <>
+                                                <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>{p.name}</Td>
+                                                <Td style={ExcelCellStyle}>
+                                                    <span style={{ color: p.gender === 'M' ? '#2563eb' : '#db2777', fontWeight: 600 }}>{p.gender === 'M' ? '남' : '여'}</span>
+                                                </Td>
+                                                {attributeKeys.map(key => (
+                                                    <Td key={key} style={ExcelCellStyle}>
+                                                        {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
+                                                    </Td>
+                                                ))}
+                                                <Td style={ExcelCellStyle}>
+                                                    <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
+                                                </Td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Td style={ExcelCellStyle}>
+                                                    <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
+                                                </Td>
+                                                <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>{p.name}</Td>
+                                                <Td style={ExcelCellStyle}>
+                                                    <span style={{ color: p.gender === 'M' ? '#2563eb' : '#db2777', fontWeight: 600 }}>{p.gender === 'M' ? '남' : '여'}</span>
+                                                </Td>
+                                                {attributeKeys.map(key => (
+                                                    <Td key={key} style={ExcelCellStyle}>
+                                                        {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
+                                                    </Td>
+                                                ))}
+                                            </>
+                                        )}
                                         <Td style={ExcelCellStyle}>
                                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                                 {p.history?.map(h => <span key={h} style={{ fontSize: '0.7rem', color: '#64748b' }}>#{h}</span>)}

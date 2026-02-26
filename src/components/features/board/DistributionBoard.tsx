@@ -345,7 +345,13 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                             </thead>
                             <tbody>
                                 {(viewMode === 'team'
-                                    ? [...allAssigned].sort((a, b) => a.teamSortIndex - b.teamSortIndex || a.name.localeCompare(b.name, 'ko'))
+                                    ? [...allAssigned].sort((a, b) => {
+                                        if (a.teamSortIndex !== b.teamSortIndex) return a.teamSortIndex - b.teamSortIndex;
+                                        const yearA = String(a.attributes?.['학번'] || '9999');
+                                        const yearB = String(b.attributes?.['학번'] || '9999');
+                                        if (yearA !== yearB) return yearA.localeCompare(yearB);
+                                        return a.name.localeCompare(b.name, 'ko');
+                                    })
                                     : [...allAssigned].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
                                 ).map((p, idx) => (
                                     <tr key={p.id} style={{

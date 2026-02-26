@@ -203,8 +203,9 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     const handleRunAgent = async (command: string) => {
         setIsAgentLoading(true);
         try {
-            const currentPersonnel: Personnel[] = [];
-            Object.values(items).forEach(list => currentPersonnel.push(...list));
+            const currentPersonnel: Personnel[] = Object.entries(items).flatMap(([teamId, list]) =>
+                list.map(p => ({ ...p, assignedTeamId: teamId === 'unassigned' ? undefined : teamId }))
+            );
             const currentTeams = initialTeams.map(t => ({ id: t.id, name: t.name, capacity: t.capacity }));
             const response = await fetch('/api/agent', {
                 method: 'POST',
@@ -215,6 +216,34 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
             if (data.rationale) {
                 setAgentRationale(data.rationale);
                 setAgentLogs(data.logs || []);
+            }
+
+            if (data.assignments && data.assignments.length > 0) {
+                setItems(prev => {
+                    const newItems = { ...prev };
+                    // 모든 리스트에서 인원 초기화 방지를 위해 먼저 전체 인원 풀을 확보
+                    const allPeople = Object.values(prev).flat();
+
+                    // 모든 팀 리스트 비우기 (새 배정 적용을 위해)
+                    Object.keys(newItems).forEach(key => {
+                        newItems[key] = [];
+                    });
+
+                    // AI의 배정 결과 적용
+                    data.assignments.forEach((as: { personId: string; teamId: string }) => {
+                        const person = allPeople.find(p => p.id === as.personId || p.name === as.personId);
+                        if (person && newItems[as.teamId]) {
+                            newItems[as.teamId].push({ ...person, assignedTeamId: as.teamId });
+                        }
+                    });
+
+                    // 배정되지 않은 남은 인원 처리
+                    const assignedIds = new Set(data.assignments.map((as: any) => as.personId));
+                    const remaining = allPeople.filter(p => !assignedIds.has(p.id) && !assignedIds.has(p.name));
+                    newItems['unassigned'] = [...(newItems['unassigned'] || []), ...remaining];
+
+                    return newItems;
+                });
             }
         } catch (error) {
             console.error(error);

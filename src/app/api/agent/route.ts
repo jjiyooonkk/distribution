@@ -68,7 +68,8 @@ export async function POST(req: Request) {
             name: p.name,
             gender: p.gender,
             tags: p.tags,
-            history: p.history
+            history: p.history,
+            assignedTeamId: p.assignedTeamId
         }));
 
         const simplifiedTeams = (teams as TeamConfig[]).map(t => ({
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
             
             [Current Data]
             Teams: ${JSON.stringify(simplifiedTeams)}
-            Personnel Sample: ${JSON.stringify(simplifiedPersonnel.slice(0, 50))}... (Total ${simplifiedPersonnel.length})
+            Personnel Sample: ${JSON.stringify(simplifiedPersonnel.slice(0, 150))}... (Total ${simplifiedPersonnel.length})
             
             (Please process all personnel. If list is truncated here, assume full list is available in context or generate logic to handle them.)
         `;

@@ -418,10 +418,9 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                     ) : (
                                         <>
                                             <Th style={ExcelHeaderStyle}>배정된 팀</Th>
-                                            <Th style={ExcelHeaderStyle}>학번</Th>
-                                            <Th style={ExcelHeaderStyle}>이름</Th>
-                                            <Th style={ExcelHeaderStyle}>성별</Th>
-                                            {attributeKeys.filter(k => k !== '학번' && k !== '이름' && k !== '성별').map(key => (
+                                            {attributeKeys.includes('학번') && <Th style={ExcelHeaderStyle}>학번</Th>}
+                                            {attributeKeys.includes('이름') && <Th style={ExcelHeaderStyle}>이름</Th>}
+                                            {attributeKeys.filter(k => k !== '학번' && k !== '이름').map(key => (
                                                 <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
                                             ))}
                                         </>
@@ -460,14 +459,17 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                                 <Td style={ExcelCellStyle}>
                                                     <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
                                                 </Td>
-                                                <Td style={ExcelCellStyle}>
-                                                    {p.attributes && p.attributes['학번'] !== undefined ? String(p.attributes['학번']) : '-'}
-                                                </Td>
-                                                <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>{p.name}</Td>
-                                                <Td style={ExcelCellStyle}>
-                                                    <span style={{ color: p.gender === 'M' ? '#2563eb' : '#db2777', fontWeight: 600 }}>{p.gender === 'M' ? '남' : '여'}</span>
-                                                </Td>
-                                                {attributeKeys.filter(k => k !== '학번' && k !== '이름' && k !== '성별').map(key => (
+                                                {attributeKeys.includes('학번') && (
+                                                    <Td style={ExcelCellStyle}>
+                                                        {p.attributes && p.attributes['학번'] !== undefined ? String(p.attributes['학번']) : '-'}
+                                                    </Td>
+                                                )}
+                                                {attributeKeys.includes('이름') && (
+                                                    <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>
+                                                        {p.attributes && p.attributes['이름'] !== undefined ? String(p.attributes['이름']) : '-'}
+                                                    </Td>
+                                                )}
+                                                {attributeKeys.filter(k => k !== '학번' && k !== '이름').map(key => (
                                                     <Td key={key} style={ExcelCellStyle}>
                                                         {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
                                                     </Td>

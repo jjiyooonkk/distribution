@@ -132,8 +132,9 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 tags: tagsRaw.split(',').map(s => s.trim()).filter(Boolean),
                 attributes: extraMappings.reduce((acc, m) => {
                     const idx = headers.indexOf(m.header);
-                    if (idx >= 0 && m.label) {
-                        acc[m.label] = row[idx];
+                    const finalKey = m.label || m.header;
+                    if (idx >= 0 && finalKey) {
+                        acc[finalKey] = row[idx];
                     }
                     return acc;
                 }, {} as Record<string, any>)
@@ -292,7 +293,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                                     <th style={{ padding: '12px', textAlign: 'left' }}>이력</th>
                                     <th style={{ padding: '12px', textAlign: 'left' }}>태그</th>
                                     {extraMappings.map(m => (
-                                        <th key={m.id} style={{ padding: '12px', textAlign: 'left' }}>{m.label || '(미지정)'}</th>
+                                        <th key={m.id} style={{ padding: '12px', textAlign: 'left' }}>{m.label || m.header || '(미지정)'}</th>
                                     ))}
                                 </tr>
                             </thead>

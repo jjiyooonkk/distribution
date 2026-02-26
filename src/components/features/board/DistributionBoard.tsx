@@ -263,9 +263,15 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     const allAssigned = Object.entries(items).flatMap(([teamId, people = []]) =>
         (people || []).map(p => ({
             ...p,
-            teamName: teamId === 'unassigned' ? '미배정' : initialTeams.find(t => t.id === teamId)?.name || '알 수 없음'
+            teamName: teamId === 'unassigned' ? '미배정' : initialTeams.find(t => t.id === teamId)?.name || '알 수 없음',
+            teamSortIndex: teamId === 'unassigned' ? 9999 : initialTeams.findIndex(t => t.id === teamId)
         }))
     );
+
+    // 모든 인원의 attributes 목록에서 유니크한 키 값들을 추출 (엑셀 컬럼용)
+    const attributeKeys = Array.from(new Set(
+        allAssigned.flatMap(p => Object.keys(p.attributes || {}))
+    ));
 
     return (
         <div style={{ height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -310,103 +316,53 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                 )}
 
                 {(viewMode === 'list' || viewMode === 'team') && (
-                    <div className="glass-panel" style={{ height: '100%', overflow: 'auto', padding: 0, borderRadius: 'var(--radius-lg)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.95rem' }}>
-                            <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface-hover)', backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--border)' }}>
-                                {viewMode === 'list' ? (
-                                    <tr>
-                                        <Th>이름</Th>
-                                        <Th>성별</Th>
-                                        <Th>고려 사항 (이력/태그)</Th>
-                                        <Th>배정된 팀</Th>
-                                    </tr>
-                                ) : (
-                                    <tr>
-                                        <Th style={{ width: '200px' }}>배정 단위 (팀)</Th>
-                                        <Th>소속 인원 명단</Th>
-                                        <Th style={{ width: '120px' }}>현재 인원</Th>
-                                        <Th style={{ width: '150px' }}>성비 구성</Th>
-                                    </tr>
-                                )}
+                    <div className="glass-panel" style={{ height: '100%', overflow: 'auto', padding: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', backgroundColor: 'white' }}>
+                            <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
+                                <tr>
+                                    <Th style={ExcelHeaderStyle}>배정된 팀</Th>
+                                    <Th style={ExcelHeaderStyle}>이름</Th>
+                                    <Th style={ExcelHeaderStyle}>성별</Th>
+                                    {attributeKeys.map(key => (
+                                        <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
+                                    ))}
+                                    <Th style={ExcelHeaderStyle}>비고(이력)</Th>
+                                </tr>
                             </thead>
                             <tbody>
-                                {viewMode === 'list' ? (
-                                    allAssigned.map((p, idx) => (
-                                        <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'transparent' : 'rgba(15, 23, 42, 0.02)' }}>
-                                            <Td style={{ fontWeight: 700 }}>{p.name}</Td>
-                                            <Td>
-                                                <span style={{
-                                                    color: p.gender === 'M' ? '#2563eb' : '#db2777',
-                                                    fontWeight: 700,
-                                                    background: p.gender === 'M' ? '#eff6ff' : '#fdf2f8',
-                                                    padding: '4px 8px',
-                                                    borderRadius: '6px',
-                                                    fontSize: '0.8rem'
-                                                }}>{p.gender === 'M' ? '남성' : '여성'}</span>
+                                {(viewMode === 'team'
+                                    ? [...allAssigned].sort((a, b) => a.teamSortIndex - b.teamSortIndex || a.name.localeCompare(b.name))
+                                    : allAssigned
+                                ).map((p, idx) => (
+                                    <tr key={p.id} style={{
+                                        borderBottom: '1px solid #e2e8f0',
+                                        background: p.teamName === '미배정' ? '#fff1f2' : (idx % 2 === 0 ? 'white' : '#fcfcfc')
+                                    }}>
+                                        <Td style={ExcelCellStyle}>
+                                            <span style={{
+                                                fontWeight: 800,
+                                                color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)',
+                                            }}>{p.teamName}</span>
+                                        </Td>
+                                        <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>{p.name}</Td>
+                                        <Td style={ExcelCellStyle}>
+                                            <span style={{
+                                                color: p.gender === 'M' ? '#2563eb' : '#db2777',
+                                                fontWeight: 600
+                                            }}>{p.gender === 'M' ? '남' : '여'}</span>
+                                        </Td>
+                                        {attributeKeys.map(key => (
+                                            <Td key={key} style={ExcelCellStyle}>
+                                                {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
                                             </Td>
-                                            <Td>
-                                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                    {p.history?.map(h => <span key={h} style={{ fontSize: '0.75rem', padding: '2px 8px', background: 'white', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-secondary)' }}>#{h}</span>)}
-                                                    {p.tags?.map(t => <span key={t} style={{ fontSize: '0.75rem', padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: '4px', fontWeight: 600 }}>{t}</span>)}
-                                                </div>
-                                            </Td>
-                                            <Td>
-                                                <span style={{
-                                                    padding: '6px 12px',
-                                                    borderRadius: '20px',
-                                                    background: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary-gradient)',
-                                                    color: 'white',
-                                                    fontSize: '0.85rem',
-                                                    fontWeight: 600,
-                                                    boxShadow: p.teamName === '미배정' ? 'none' : '0 4px 10px rgba(15, 23, 42, 0.1)'
-                                                }}>
-                                                    {p.teamName}
-                                                </span>
-                                            </Td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    ['unassigned', ...initialTeams.map(t => t.id)].map((teamId, idx) => {
-                                        const teamItems = items[teamId] || [];
-                                        const teamName = teamId === 'unassigned' ? '미배정 인원' : initialTeams.find(t => t.id === teamId)?.name || '알 수 없는 팀';
-                                        const mCount = teamItems.filter(p => p && p.gender === 'M').length;
-                                        const fCount = teamItems.length - mCount;
-                                        return (
-                                            <tr key={teamId} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'transparent' : 'rgba(15, 23, 42, 0.02)' }}>
-                                                <Td style={{ fontWeight: 800, verticalAlign: 'top', fontSize: '1.05rem', color: teamId === 'unassigned' ? 'var(--error)' : 'var(--text-main)' }}>{teamName}</Td>
-                                                <Td>
-                                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                                        {teamItems.map(p => (
-                                                            <div key={p.id} style={{ padding: '6px 12px', background: 'white', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '0.9rem', boxShadow: 'var(--shadow-sm)' }}>
-                                                                <strong style={{ color: 'var(--text-main)' }}>{p.name}</strong>
-                                                                <span style={{
-                                                                    marginLeft: '6px',
-                                                                    color: p.gender === 'M' ? '#2563eb' : '#db2777',
-                                                                    fontSize: '0.75rem',
-                                                                    fontWeight: 700
-                                                                }}>{p.gender}</span>
-                                                            </div>
-                                                        ))}
-                                                        {teamItems.length === 0 && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>인원이 비어있습니다.</span>}
-                                                    </div>
-                                                </Td>
-                                                <Td style={{ fontWeight: 700, fontSize: '1.1rem' }}>{teamItems.length}명</Td>
-                                                <Td>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                                                            <span style={{ color: '#2563eb', fontWeight: 600 }}>남성 {mCount}</span>
-                                                            <span style={{ color: '#db2777', fontWeight: 600 }}>여성 {fCount}</span>
-                                                        </div>
-                                                        <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: '#e2e8f0', display: 'flex', overflow: 'hidden' }}>
-                                                            <div style={{ width: `${(mCount / teamItems.length) * 100}%`, height: '100%', background: '#60a5fa' }} />
-                                                            <div style={{ width: `${(fCount / teamItems.length) * 100}%`, height: '100%', background: '#f472b6' }} />
-                                                        </div>
-                                                    </div>
-                                                </Td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
+                                        ))}
+                                        <Td style={ExcelCellStyle}>
+                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                {p.history?.map(h => <span key={h} style={{ fontSize: '0.7rem', color: '#64748b' }}>#{h}</span>)}
+                                            </div>
+                                        </Td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -418,12 +374,28 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     );
 };
 
+const ExcelHeaderStyle: React.CSSProperties = {
+    padding: '12px 16px',
+    border: '1px solid #cbd5e1',
+    backgroundColor: '#f1f5f9',
+    color: '#475569',
+    fontSize: '0.75rem',
+    textTransform: 'none',
+    letterSpacing: 'normal'
+};
+
+const ExcelCellStyle: React.CSSProperties = {
+    padding: '10px 16px',
+    border: '1px solid #e2e8f0',
+    color: '#1e293b'
+};
+
 const Th = ({ children, style }: { children: React.ReactNode, style?: React.CSSProperties }) => (
-    <th style={{ padding: '18px 24px', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', ...style }}>{children}</th>
+    <th style={{ ...style }}>{children}</th>
 );
 
 const Td = ({ children, style }: { children: React.ReactNode, style?: React.CSSProperties }) => (
-    <td style={{ padding: '20px 24px', color: 'var(--text-main)', ...style }}>{children}</td>
+    <td style={{ ...style }}>{children}</td>
 );
 
 const ViewButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (

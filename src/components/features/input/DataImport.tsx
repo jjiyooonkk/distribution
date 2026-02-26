@@ -124,11 +124,9 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 gender: (isMale ? 'M' : 'F') as 'M' | 'F',
                 history: historyRaw.split(',').map(s => s.trim()).filter(Boolean),
                 tags: [],
-                attributes: extraMappings.reduce((acc, m) => {
-                    const idx = headers.indexOf(m.header);
-                    const finalKey = m.label || m.header;
-                    if (idx >= 0 && finalKey) {
-                        acc[finalKey] = row[idx];
+                attributes: headers.reduce((acc, header, hIdx) => {
+                    if (header) {
+                        acc[header] = row[hIdx];
                     }
                     return acc;
                 }, {} as Record<string, any>)

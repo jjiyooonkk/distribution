@@ -281,15 +281,13 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     const getExportData = () => {
         return [...allAssigned].sort((a, b) => a.teamSortIndex - b.teamSortIndex || a.name.localeCompare(b.name, 'ko'))
             .map(p => {
-                const base = {
+                const base: any = {
                     '배정된 팀': p.teamName,
-                    '이름': p.name,
-                    '성별': p.gender === 'M' ? '남' : '여',
                 };
                 attributeKeys.forEach(key => {
-                    (base as any)[key] = p.attributes?.[key] || '-';
+                    base[key] = p.attributes?.[key] || '-';
                 });
-                (base as any)['비고'] = p.history?.join(', ') || '';
+                base['비고'] = p.history?.join(', ') || '';
                 return base;
             });
     };
@@ -412,12 +410,10 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                 <tr>
                                     {viewMode === 'list' ? (
                                         <>
-                                            <Th style={ExcelHeaderStyle}>이름</Th>
-                                            <Th style={ExcelHeaderStyle}>성별</Th>
+                                            <Th style={ExcelHeaderStyle}>배정된 팀</Th>
                                             {attributeKeys.map(key => (
                                                 <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
                                             ))}
-                                            <Th style={ExcelHeaderStyle}>배정된 팀</Th>
                                         </>
                                     ) : (
                                         <>
@@ -425,7 +421,7 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                             <Th style={ExcelHeaderStyle}>학번</Th>
                                             <Th style={ExcelHeaderStyle}>이름</Th>
                                             <Th style={ExcelHeaderStyle}>성별</Th>
-                                            {attributeKeys.filter(k => k !== '학번').map(key => (
+                                            {attributeKeys.filter(k => k !== '학번' && k !== '이름' && k !== '성별').map(key => (
                                                 <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
                                             ))}
                                         </>
@@ -450,18 +446,14 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                     }}>
                                         {viewMode === 'list' ? (
                                             <>
-                                                <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>{p.name}</Td>
-                                                <Td style={ExcelCellStyle}>
-                                                    <span style={{ color: p.gender === 'M' ? '#2563eb' : '#db2777', fontWeight: 600 }}>{p.gender === 'M' ? '남' : '여'}</span>
-                                                </Td>
-                                                {attributeKeys.map(key => (
-                                                    <Td key={key} style={ExcelCellStyle}>
-                                                        {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
-                                                    </Td>
-                                                ))}
                                                 <Td style={ExcelCellStyle}>
                                                     <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
                                                 </Td>
+                                                {attributeKeys.map(key => (
+                                                    <Td key={key} style={{ ...ExcelCellStyle, fontWeight: (key === '이름' || key === 'Name') ? 700 : 400 }}>
+                                                        {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
+                                                    </Td>
+                                                ))}
                                             </>
                                         ) : (
                                             <>
@@ -475,7 +467,7 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                                 <Td style={ExcelCellStyle}>
                                                     <span style={{ color: p.gender === 'M' ? '#2563eb' : '#db2777', fontWeight: 600 }}>{p.gender === 'M' ? '남' : '여'}</span>
                                                 </Td>
-                                                {attributeKeys.filter(k => k !== '학번').map(key => (
+                                                {attributeKeys.filter(k => k !== '학번' && k !== '이름' && k !== '성별').map(key => (
                                                     <Td key={key} style={ExcelCellStyle}>
                                                         {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
                                                     </Td>

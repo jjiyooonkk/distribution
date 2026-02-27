@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Plus, Trash2, Sparkles } from 'lucide-react';
 import { Personnel } from '@/types';
 
 interface DataImportProps {
@@ -16,7 +16,7 @@ interface DataImportProps {
 type ColumnMapping = {
     name: string;
     gender: string;
-    history: string;
+    studentId: string;
 };
 
 type ExtraMapping = {
@@ -32,7 +32,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
     const [mapping, setMapping] = useState<ColumnMapping>({
         name: '',
         gender: '',
-        history: ''
+        studentId: ''
     });
     const [extraMappings, setExtraMappings] = useState<ExtraMapping[]>([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -63,10 +63,10 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 // Smart Auto-Mapping
                 const newMapping = { ...mapping };
                 headerRow.forEach(h => {
-                    const lower = h.toLowerCase();
-                    if (lower.includes('name') || lower.includes('이름')) newMapping.name = h;
+                    const lower = h.toLowerCase().replace(/\s/g, '');
+                    if (lower.includes('name') || lower.includes('이름') || lower.includes('성함')) newMapping.name = h;
                     else if (lower.includes('gender') || lower.includes('성별')) newMapping.gender = h;
-                    else if (lower.includes('history') || lower.includes('이력') || lower.includes('실습')) newMapping.history = h;
+                    else if (lower.includes('학번') || lower.includes('studentid') || lower.includes('id') || lower.includes('번호')) newMapping.studentId = h;
                 });
                 setMapping(newMapping);
             }
@@ -105,25 +105,37 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
         ));
     };
 
-    // Real-time processing for Agent and Preview
     const processedPersonnel = React.useMemo(() => {
         if (data.length === 0) return [];
 
         const nameIdx = headers.indexOf(mapping.name);
         const genderIdx = headers.indexOf(mapping.gender);
-        const historyIdx = headers.indexOf(mapping.history);
-        return data.map((row, idx) => {
-            const historyRaw = historyIdx >= 0 ? String(row[historyIdx] || '') : '';
+        const studentIdIdx = headers.indexOf(mapping.studentId);
 
-            const genderVal = row[genderIdx];
-            const isMale = String(genderVal).trim().toUpperCase().startsWith('M') || String(genderVal).trim() === '남';
+        return data.map((row, idx) => {
+            const nameVal = row[nameIdx] || '';
+            const isMale = genderIdx >= 0 && (String(row[genderIdx]).trim().toUpperCase().startsWith('M') || String(row[genderIdx]).trim() === '남');
+            const studentId = studentIdIdx >= 0 ? String(row[studentIdIdx] || '') : '';
+
+            // AI에게 전달할 추가 태그 추출
+            const tags: string[] = [];
+            if (studentId) tags.push(`학번: ${studentId}`);
+
+            extraMappings.forEach(m => {
+                const hIdx = headers.indexOf(m.header);
+                if (hIdx >= 0 && row[hIdx]) {
+                    tags.push(`${m.label || m.header}: ${row[hIdx]}`);
+                }
+            });
+
+            const mappedHeaders = [mapping.name, mapping.gender, mapping.studentId, ...extraMappings.map(m => m.header)];
 
             return {
-                id: `p-${idx}`,
-                name: row[nameIdx],
-                gender: (isMale ? 'M' : 'F') as 'M' | 'F',
-                history: historyRaw.split(',').map(s => s.trim()).filter(Boolean),
-                tags: [],
+                id: studentId || `p-${idx}`, // 학번이 있으면 ID로 사용, 없으면 인덱스
+                name: String(nameVal).trim(),
+                gender: (genderIdx >= 0 ? (isMale ? 'M' : 'F') : undefined) as 'M' | 'F' | undefined,
+                history: [], // History는 이제 tags나 attributes에서 관리
+                tags,
                 attributes: headers.reduce((acc, header, hIdx) => {
                     if (header) {
                         acc[header] = row[hIdx];
@@ -131,7 +143,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     return acc;
                 }, {} as Record<string, any>)
             };
-        }).filter(p => p.name);
+        }).filter(p => !!p.name);
     }, [data, headers, mapping, extraMappings]);
 
     // Lift state up whenever data changes
@@ -199,12 +211,30 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
             {/* Mapping Section */}
             {data.length > 0 && (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>컬럼 매핑</h3>
+                    <div style={{
+                        padding: '16px',
+                        background: 'rgba(99, 102, 241, 0.05)',
+                        border: '1px solid rgba(99, 102, 241, 0.1)',
+                        borderRadius: '12px',
+                        marginBottom: '24px',
+                        fontSize: '0.9rem',
+                        color: 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                    }}>
+                        <Sparkles size={18} />
+                        <div>
+                            <strong>토큰 절약 모드 활성화:</strong> 배정 시 AI에게는 여기서 <strong>연결(매핑)한 컬럼</strong>만 전달됩니다.
+                            그 외 모든 컬럼은 데이터 무결성을 위해 최종 결과에만 포함됩니다.
+                        </div>
+                    </div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>컬럼 매핑 (AI 배정 고려 항목)</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                         {[
-                            { label: '이름 (Name)', key: 'name', req: true },
-                            { label: '성별 (Gender)', key: 'gender', req: true },
-                            { label: '과거 이력 (History)', key: 'history', req: false }
+                            { label: '이름', key: 'name', req: true },
+                            { label: '학번', key: 'studentId', req: false },
+                            { label: '성별', key: 'gender', req: true }
                         ].map((field) => (
                             <div key={field.key}>
                                 <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -220,8 +250,36 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                                 </select>
                             </div>
                         ))}
+                    </div>
 
-                        {/* Extra Mappings */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>추가 항목 (AI 배정 시 참고)</h4>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <Button
+                                variant="ghost"
+                                onClick={() => {
+                                    const mapped = [mapping.name, mapping.gender, mapping.studentId];
+                                    const currentExtras = extraMappings.map(m => m.header);
+                                    const newExtras: ExtraMapping[] = [];
+                                    headers.forEach(h => {
+                                        if (h && !mapped.includes(h) && !currentExtras.includes(h)) {
+                                            newExtras.push({ id: `auto-${h}-${Date.now()}`, label: h, header: h });
+                                        }
+                                    });
+                                    if (newExtras.length > 0) {
+                                        setExtraMappings([...extraMappings, ...newExtras]);
+                                    }
+                                }}
+                                style={{ fontSize: '0.8rem', height: '32px' }}
+                            >
+                                <Plus size={14} /> 나머지 모든 칼럼 추가
+                            </Button>
+                            <Button variant="outline" onClick={addExtraMapping} style={{ fontSize: '0.8rem', height: '32px' }}>
+                                <Plus size={14} /> 직접 추가
+                            </Button>
+                        </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                         {extraMappings.map((m) => (
                             <div key={m.id} style={{ position: 'relative' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -280,7 +338,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                             <thead style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                                 <tr>
                                     {headers.map((h, i) => (
-                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: (h === mapping.name || h === mapping.gender || h === mapping.history) ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: (h === mapping.name || h === mapping.gender || h === mapping.studentId) ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
                                             {h || `Column ${i + 1}`}
                                         </th>
                                     ))}

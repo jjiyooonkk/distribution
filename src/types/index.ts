@@ -13,7 +13,7 @@ export interface TeamConfig {
 export interface Personnel {
     id: string; // ID or student ID
     name: string;
-    gender: 'M' | 'F';
+    gender?: 'M' | 'F';
     history: string[]; // Past locations
     tags: string[]; // "Driver", "Leader", etc.
     assignedTeamId?: string;

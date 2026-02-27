@@ -302,9 +302,14 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
         }))
     );
 
-    // 모든 인원의 attributes 목록에서 유니크한 키 값들을 추출 (엑셀 컬럼용)
+    // 모든 인원의 attributes 목록에서 유니크한 키 값들을 추출 (화면 출력 및 AI용)
     const attributeKeys = Array.from(new Set(
         allAssigned.flatMap(p => Object.keys(p.attributes || {}))
+    ));
+
+    // 모든 인원의 원본 attributes 목록 (엑셀 내보내기용)
+    const fullAttributeKeys = Array.from(new Set(
+        allAssigned.flatMap(p => Object.keys(p.fullAttributes || {}))
     ));
 
     const getExportData = () => {
@@ -320,10 +325,9 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                 const base: any = {
                     '배정된 팀': p.teamName,
                 };
-                attributeKeys.forEach(key => {
-                    base[key] = p.attributes?.[key] || '-';
+                fullAttributeKeys.forEach(key => {
+                    base[key] = p.fullAttributes?.[key] || '-';
                 });
-                base['비고'] = p.history?.join(', ') || '';
                 return base;
             });
     };

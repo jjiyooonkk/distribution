@@ -18,4 +18,5 @@ export interface Personnel {
     tags: string[]; // "Driver", "Leader", etc.
     assignedTeamId?: string;
     attributes?: Record<string, any>;
+    fullAttributes?: Record<string, any>; // preserved original data for export
 }

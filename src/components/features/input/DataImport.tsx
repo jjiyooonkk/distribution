@@ -136,7 +136,15 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 gender: (genderIdx >= 0 ? (isMale ? 'M' : 'F') : undefined) as 'M' | 'F' | undefined,
                 history: [], // History는 이제 tags나 attributes에서 관리
                 tags,
-                attributes: headers.reduce((acc, header, hIdx) => {
+                attributes: visibleHeaders.reduce((acc, header) => {
+                    const hIdx = headers.indexOf(header);
+                    // 기본 필수 필드(이름, 학번, 성별)는 속성 목록에서 중복 표시되지 않도록 제외 (선택 사항)
+                    if (hIdx >= 0 && ![mapping.name, mapping.studentId, mapping.gender].includes(header)) {
+                        acc[header] = row[hIdx];
+                    }
+                    return acc;
+                }, {} as Record<string, any>),
+                fullAttributes: headers.reduce((acc, header, hIdx) => {
                     if (header) {
                         acc[header] = row[hIdx];
                     }
@@ -147,6 +155,12 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
     }, [data, headers, mapping, extraMappings]);
 
     // Lift state up whenever data changes
+    const visibleHeaders = React.useMemo(() => {
+        const mapped = [mapping.name, mapping.gender, mapping.studentId].filter(Boolean);
+        const extras = extraMappings.map(m => m.header).filter(Boolean);
+        return headers.filter(h => mapped.includes(h) || extras.includes(h));
+    }, [headers, mapping, extraMappings]);
+
     React.useEffect(() => {
         if (onDataUpdate) {
             onDataUpdate(processedPersonnel);
@@ -255,25 +269,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                         <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>추가 항목 (AI 배정 시 참고)</h4>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <Button
-                                variant="ghost"
-                                onClick={() => {
-                                    const mapped = [mapping.name, mapping.gender, mapping.studentId];
-                                    const currentExtras = extraMappings.map(m => m.header);
-                                    const newExtras: ExtraMapping[] = [];
-                                    headers.forEach(h => {
-                                        if (h && !mapped.includes(h) && !currentExtras.includes(h)) {
-                                            newExtras.push({ id: `auto-${h}-${Date.now()}`, label: h, header: h });
-                                        }
-                                    });
-                                    if (newExtras.length > 0) {
-                                        setExtraMappings([...extraMappings, ...newExtras]);
-                                    }
-                                }}
-                                style={{ fontSize: '0.8rem', height: '32px' }}
-                            >
-                                <Plus size={14} /> 나머지 모든 칼럼 추가
-                            </Button>
                             <Button variant="outline" onClick={addExtraMapping} style={{ fontSize: '0.8rem', height: '32px' }}>
                                 <Plus size={14} /> 직접 추가
                             </Button>
@@ -337,9 +332,9 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                                 <tr>
-                                    {headers.map((h, i) => (
-                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: (h === mapping.name || h === mapping.gender || h === mapping.studentId) ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
-                                            {h || `Column ${i + 1}`}
+                                    {visibleHeaders.map((h, i) => (
+                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
+                                            {h}
                                         </th>
                                     ))}
                                 </tr>
@@ -347,9 +342,14 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                             <tbody>
                                 {data.slice(0, 5).map((row, i) => (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                        {headers.map((_, hIdx) => (
-                                            <td key={hIdx} style={{ padding: '12px' }}>{row[hIdx] !== undefined ? String(row[hIdx]) : '-'}</td>
-                                        ))}
+                                        {visibleHeaders.map((h, hIdx) => {
+                                            const originalIdx = headers.indexOf(h);
+                                            return (
+                                                <td key={hIdx} style={{ padding: '12px' }}>
+                                                    {row[originalIdx] !== undefined ? String(row[originalIdx]) : '-'}
+                                                </td>
+                                            );
+                                        })}
                                     </tr>
                                 ))}
                             </tbody>

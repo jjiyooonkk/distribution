@@ -1,4 +1,4 @@
-// Build trigger: 2026-02-28 22:20
+// Build trigger: 2026-03-01 04:12
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { SYSTEM_PROMPT, GENERATE_DISTRIBUTION_PROMPT } from '@/lib/agent/prompts';

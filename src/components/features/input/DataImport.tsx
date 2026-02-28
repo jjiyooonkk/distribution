@@ -105,6 +105,13 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
         ));
     };
 
+    // Lift state up whenever data changes
+    const visibleHeaders = React.useMemo(() => {
+        const mapped = [mapping.name, mapping.gender, mapping.studentId].filter(Boolean);
+        const extras = extraMappings.map(m => m.header).filter(Boolean);
+        return headers.filter(h => mapped.includes(h) || extras.includes(h));
+    }, [headers, mapping, extraMappings]);
+
     const processedPersonnel = React.useMemo(() => {
         if (data.length === 0) return [];
 
@@ -152,14 +159,8 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 }, {} as Record<string, any>)
             };
         }).filter(p => !!p.name);
-    }, [data, headers, mapping, extraMappings]);
+    }, [data, headers, mapping, extraMappings, visibleHeaders]);
 
-    // Lift state up whenever data changes
-    const visibleHeaders = React.useMemo(() => {
-        const mapped = [mapping.name, mapping.gender, mapping.studentId].filter(Boolean);
-        const extras = extraMappings.map(m => m.header).filter(Boolean);
-        return headers.filter(h => mapped.includes(h) || extras.includes(h));
-    }, [headers, mapping, extraMappings]);
 
     React.useEffect(() => {
         if (onDataUpdate) {

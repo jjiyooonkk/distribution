@@ -19,7 +19,7 @@ export const distributePersonnel = (
 
     // Helper to find value in person (including attributes)
     const getPersonValue = (p: Personnel, col: string): string => {
-        if (col === 'gender') return p.gender;
+        if (col === 'gender') return p.gender || '';
         if (col === 'name') return p.name;
         // Check attributes
         if (p.attributes && p.attributes[col] !== undefined) return String(p.attributes[col]);

@@ -68,32 +68,60 @@ function SortableItem({ id, person }: { id: string, person: Personnel }) {
             {...attributes}
             className="animate-in fade-in duration-300"
         >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{person.name}</span>
-                <span style={{
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    color: person.gender === 'M' ? '#2563eb' : '#db2777',
-                    background: person.gender === 'M' ? '#eff6ff' : '#fdf2f8',
-                    padding: '2px 6px',
-                    borderRadius: '4px'
-                }}>
-                    {person.gender}
-                </span>
-            </div>
-            {person.history && person.history.length > 0 && (
-                <div style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    gap: '4px',
-                    flexWrap: 'wrap'
-                }}>
-                    {person.history.map((h, i) => (
-                        <span key={i} style={{ opacity: 0.8 }}>#{h}</span>
-                    ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-main)' }}>{person.name}</span>
+                    {person.gender && (
+                        <span style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            color: person.gender === 'M' ? '#2563eb' : '#db2777',
+                            background: person.gender === 'M' ? '#eff6ff' : '#fdf2f8',
+                            padding: '2px 6px',
+                            borderRadius: '4px'
+                        }}>
+                            {person.gender}
+                        </span>
+                    )}
                 </div>
-            )}
+
+                {person.attributes && Object.keys(person.attributes).length > 0 && (
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                        gap: '4px',
+                        fontSize: '0.8rem',
+                        color: 'var(--text-secondary)',
+                        padding: '8px',
+                        background: 'rgba(0,0,0,0.02)',
+                        borderRadius: '4px'
+                    }}>
+                        {Object.entries(person.attributes).map(([key, val]) => {
+                            if (key === '이름' || key === 'Name' || key === '성별' || key === 'Gender') return null;
+                            return (
+                                <div key={key} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{key}: </span>
+                                    {String(val)}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {person.history && person.history.length > 0 && (
+                    <div style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        gap: '4px',
+                        flexWrap: 'wrap'
+                    }}>
+                        {person.history.map((h, i) => (
+                            <span key={i} style={{ opacity: 0.8 }}>#{h}</span>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -305,7 +333,21 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     // 모든 인원의 attributes 목록에서 유니크한 키 값들을 추출 (화면 출력 및 AI용)
     const attributeKeys = Array.from(new Set(
         allAssigned.flatMap(p => Object.keys(p.attributes || {}))
-    ));
+    )).sort((a, b) => {
+        // 이름/Name이 포함된 필드를 가장 앞으로
+        const isNameA = a.includes('이름') || a.toLowerCase().includes('name');
+        const isNameB = b.includes('이름') || b.toLowerCase().includes('name');
+        if (isNameA && !isNameB) return -1;
+        if (!isNameA && isNameB) return 1;
+
+        // 학번/ID가 포함된 필드를 그 다음으로
+        const isIdA = a.includes('학번') || a.toLowerCase().includes('id');
+        const isIdB = b.includes('학번') || b.toLowerCase().includes('id');
+        if (isIdA && !isIdB) return -1;
+        if (!isIdA && isIdB) return 1;
+
+        return 0;
+    });
 
     // 모든 인원의 원본 attributes 목록 (엑셀 내보내기용)
     const fullAttributeKeys = Array.from(new Set(
@@ -448,23 +490,10 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', backgroundColor: 'white' }}>
                             <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
                                 <tr>
-                                    {viewMode === 'list' ? (
-                                        <>
-                                            <Th style={ExcelHeaderStyle}>배정된 팀</Th>
-                                            {attributeKeys.map(key => (
-                                                <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
-                                            ))}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Th style={ExcelHeaderStyle}>배정된 팀</Th>
-                                            {attributeKeys.includes('학번') && <Th style={ExcelHeaderStyle}>학번</Th>}
-                                            {attributeKeys.includes('이름') && <Th style={ExcelHeaderStyle}>이름</Th>}
-                                            {attributeKeys.filter(k => k !== '학번' && k !== '이름').map(key => (
-                                                <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
-                                            ))}
-                                        </>
-                                    )}
+                                    {attributeKeys.map(key => (
+                                        <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
+                                    ))}
+                                    <Th style={ExcelHeaderStyle}>배정된 팀</Th>
                                     <Th style={ExcelHeaderStyle}>비고(이력)</Th>
                                 </tr>
                             </thead>
@@ -492,39 +521,14 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                         borderBottom: '1px solid #e2e8f0',
                                         background: p.teamName === '미배정' ? '#fff1f2' : (idx % 2 === 0 ? 'white' : '#fcfcfc')
                                     }}>
-                                        {viewMode === 'list' ? (
-                                            <>
-                                                <Td style={ExcelCellStyle}>
-                                                    <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
-                                                </Td>
-                                                {attributeKeys.map(key => (
-                                                    <Td key={key} style={{ ...ExcelCellStyle, fontWeight: (key === '이름' || key === 'Name') ? 700 : 400 }}>
-                                                        {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
-                                                    </Td>
-                                                ))}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Td style={ExcelCellStyle}>
-                                                    <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
-                                                </Td>
-                                                {attributeKeys.includes('학번') && (
-                                                    <Td style={ExcelCellStyle}>
-                                                        {p.attributes && p.attributes['학번'] !== undefined ? String(p.attributes['학번']) : '-'}
-                                                    </Td>
-                                                )}
-                                                {attributeKeys.includes('이름') && (
-                                                    <Td style={{ ...ExcelCellStyle, fontWeight: 700 }}>
-                                                        {p.attributes && p.attributes['이름'] !== undefined ? String(p.attributes['이름']) : '-'}
-                                                    </Td>
-                                                )}
-                                                {attributeKeys.filter(k => k !== '학번' && k !== '이름').map(key => (
-                                                    <Td key={key} style={ExcelCellStyle}>
-                                                        {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
-                                                    </Td>
-                                                ))}
-                                            </>
-                                        )}
+                                        {attributeKeys.map(key => (
+                                            <Td key={key} style={{ ...ExcelCellStyle, fontWeight: (key.includes('이름') || key.toLowerCase().includes('name')) ? 700 : 400 }}>
+                                                {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
+                                            </Td>
+                                        ))}
+                                        <Td style={ExcelCellStyle}>
+                                            <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
+                                        </Td>
                                         <Td style={ExcelCellStyle}>
                                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                                 {p.history?.map(h => <span key={h} style={{ fontSize: '0.7rem', color: '#64748b' }}>#{h}</span>)}

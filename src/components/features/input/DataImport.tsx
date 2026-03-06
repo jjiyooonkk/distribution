@@ -145,8 +145,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 tags,
                 attributes: visibleHeaders.reduce((acc, header) => {
                     const hIdx = headers.indexOf(header);
-                    // 기본 필수 필드(이름, 학번, 성별)는 속성 목록에서 중복 표시되지 않도록 제외 (선택 사항)
-                    if (hIdx >= 0 && ![mapping.name, mapping.studentId, mapping.gender].includes(header)) {
+                    if (hIdx >= 0) {
                         acc[header] = row[hIdx];
                     }
                     return acc;

@@ -72,7 +72,8 @@ export async function POST(req: Request) {
             gender: p.gender,
             tags: p.tags,
             history: p.history,
-            assignedTeamId: p.assignedTeamId
+            assignedTeamId: p.assignedTeamId,
+            attributes: p.attributes
         }));
 
         const simplifiedTeams = (teams as TeamConfig[]).map(t => ({

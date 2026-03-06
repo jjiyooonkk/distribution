@@ -13,6 +13,24 @@ import { FinalPreviewModal } from '@/components/features/output/FinalPreviewModa
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AgentChat } from '@/components/features/board/AgentChat';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical, X } from 'lucide-react';
 
 export default function NewProjectPage() {
     const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -164,6 +182,31 @@ export default function NewProjectPage() {
         }
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEndConstraints = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            setConstraints((items) => {
+                const oldIndex = items.findIndex((i) => i.id === active.id);
+                const newIndex = items.findIndex((i) => i.id === over.id);
+                const newArr = arrayMove(items, oldIndex, newIndex);
+
+                // priority 값 업데이트 (1부터 시작)
+                return newArr.map((item, idx) => ({
+                    ...item,
+                    priority: idx + 1
+                }));
+            });
+        }
+    };
+
     const handleFinalConfirm = () => {
         setIsModalOpen(false);
         alert("Distribution Approved! Notifications sent (Simulated). Redirecting to Dashboard...");
@@ -253,7 +296,7 @@ export default function NewProjectPage() {
                 </Link>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.03em', background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        {projectName || "새 인원 분배 프로젝트"}
+                        {projectName || "새 프로젝트 만들기"}
                     </h1>
                     <Button variant="ghost" onClick={handleReset} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         초기화하고 처음부터 시작
@@ -286,33 +329,25 @@ export default function NewProjectPage() {
                                         우선순위 설정 (내림차순)
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {constraints.sort((a, b) => a.priority - b.priority).map((c, i) => (
-                                            <div key={c.id} style={{
-                                                background: 'var(--surface-hover)',
-                                                padding: '12px',
-                                                borderRadius: '8px',
-                                                fontSize: '0.85rem',
-                                                border: '1px solid var(--border)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                gap: '8px'
-                                            }}>
-                                                <span style={{ fontWeight: 600, color: 'var(--primary)', minWidth: '20px' }}>{i + 1}.</span>
-                                                <span style={{ flex: 1, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.text}</span>
-                                                <div style={{ display: 'flex', gap: '4px' }}>
-                                                    <button onClick={() => {
-                                                        if (i === 0) return;
-                                                        const newConstraints = [...constraints];
-                                                        const temp = newConstraints[i].priority;
-                                                        newConstraints[i].priority = newConstraints[i - 1].priority;
-                                                        newConstraints[i - 1].priority = temp;
-                                                        setConstraints(newConstraints);
-                                                    }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>↑</button>
-                                                    <button onClick={() => setConstraints(constraints.filter(curr => curr.id !== c.id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)' }}>×</button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                        <DndContext
+                                            sensors={sensors}
+                                            collisionDetection={closestCenter}
+                                            onDragEnd={handleDragEndConstraints}
+                                        >
+                                            <SortableContext
+                                                items={constraints.sort((a, b) => a.priority - b.priority).map(c => c.id)}
+                                                strategy={verticalListSortingStrategy}
+                                            >
+                                                {constraints.sort((a, b) => a.priority - b.priority).map((c, i) => (
+                                                    <SortableConstraintItem
+                                                        key={c.id}
+                                                        c={c}
+                                                        index={i}
+                                                        onDelete={(id) => setConstraints(prev => prev.filter(curr => curr.id !== id))}
+                                                    />
+                                                ))}
+                                            </SortableContext>
+                                        </DndContext>
                                     </div>
                                 </div>
                             )}
@@ -392,6 +427,50 @@ export default function NewProjectPage() {
         </div>
     );
 }
+
+const SortableConstraintItem = ({ c, index, onDelete }: { c: any, index: number, onDelete: (id: string) => void }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: c.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 100 : 1,
+        background: isDragging ? 'var(--surface-elevated)' : 'var(--surface-hover)',
+        opacity: isDragging ? 0.6 : 1,
+        border: isDragging ? '1px solid var(--primary)' : '1px solid var(--border)',
+        padding: '12px',
+        borderRadius: '8px',
+        fontSize: '0.85rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+        boxShadow: isDragging ? 'var(--shadow-lg)' : 'none',
+    };
+
+    return (
+        <div ref={setNodeRef} style={style}>
+            <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                <GripVertical size={14} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ fontWeight: 600, color: 'var(--primary)', minWidth: '20px' }}>{index + 1}.</span>
+                <span style={{ flex: 1, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.text}</span>
+            </div>
+            <button
+                onClick={() => onDelete(c.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '4px', display: 'flex', alignItems: 'center' }}
+            >
+                <X size={14} />
+            </button>
+        </div>
+    );
+};
 
 const StepItem = ({ number, title, active, completed }: { number: number, title: string, active: boolean, completed: boolean }) => {
     return (

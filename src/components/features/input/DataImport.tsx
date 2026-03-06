@@ -143,9 +143,8 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 gender: (genderIdx >= 0 ? (isMale ? 'M' : 'F') : undefined) as 'M' | 'F' | undefined,
                 history: [], // History는 이제 tags나 attributes에서 관리
                 tags,
-                attributes: visibleHeaders.reduce((acc, header) => {
-                    const hIdx = headers.indexOf(header);
-                    if (hIdx >= 0) {
+                attributes: headers.reduce((acc, header, hIdx) => {
+                    if (header && row[hIdx] !== undefined) {
                         acc[header] = row[hIdx];
                     }
                     return acc;

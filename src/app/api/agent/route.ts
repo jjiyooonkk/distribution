@@ -90,9 +90,9 @@ export async function POST(req: Request) {
             
             [Current Data]
             Teams: ${JSON.stringify(simplifiedTeams)}
-            Personnel Sample: ${JSON.stringify(simplifiedPersonnel.slice(0, 150))}... (Total ${simplifiedPersonnel.length})
+            Personnel: ${JSON.stringify(simplifiedPersonnel)} (Total ${simplifiedPersonnel.length})
             
-            (Please process all personnel. If list is truncated here, assume full list is available in context or generate logic to handle them.)
+            (Please process all personnel listed above to generate the most accurate distribution.)
         `;
 
         console.log("[API] Generating content...");

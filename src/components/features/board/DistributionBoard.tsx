@@ -31,9 +31,9 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 // --- Sortable Item Component ---
-function SortableItem({ id, person }: { id: string, person: Personnel }) {
+function SortableItem({ id, person, attributeKeys }: { id: string, person: Personnel, attributeKeys: string[] }) {
     const {
-        attributes,
+        attributes: dndAttributes,
         listeners,
         setNodeRef,
         transform,
@@ -65,7 +65,7 @@ function SortableItem({ id, person }: { id: string, person: Personnel }) {
             ref={setNodeRef}
             style={style}
             {...listeners}
-            {...attributes}
+            {...dndAttributes}
             className="animate-in fade-in duration-300"
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -85,23 +85,31 @@ function SortableItem({ id, person }: { id: string, person: Personnel }) {
                     )}
                 </div>
 
-                {person.attributes && Object.keys(person.attributes).length > 0 && (
+                {attributeKeys.length > 0 && (
                     <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-                        gap: '4px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
                         fontSize: '0.8rem',
                         color: 'var(--text-secondary)',
                         padding: '8px',
                         background: 'rgba(0,0,0,0.02)',
-                        borderRadius: '4px'
+                        borderRadius: '4px',
+                        maxHeight: '150px',
+                        overflowY: 'auto'
                     }}>
-                        {Object.entries(person.attributes).map(([key, val]) => {
-                            if (key === '이름' || key === 'Name' || key === '성별' || key === 'Gender') return null;
+                        {attributeKeys.map(key => {
+                            const isNameKey = key.includes('이름') || key.toLowerCase().includes('name') || key.includes('성함') || key.includes('성명');
+                            const isGenderKey = key.includes('성별') || key.toLowerCase().includes('gender');
+                            if (isNameKey || isGenderKey) return null;
+
+                            const val = person.attributes?.[key];
+                            if (val === undefined || val === '') return null;
+
                             return (
-                                <div key={key} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{key}: </span>
-                                    {String(val)}
+                                <div key={key} style={{ display: 'flex', gap: '8px' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', minWidth: '60px', flexShrink: 0 }}>{key}:</span>
+                                    <span style={{ flex: 1, whiteSpace: 'normal', wordBreak: 'break-all' }}>{String(val)}</span>
                                 </div>
                             );
                         })}
@@ -127,7 +135,7 @@ function SortableItem({ id, person }: { id: string, person: Personnel }) {
 }
 
 // --- Droppable Container Component ---
-function DroppableContainer({ id, title, items = [], capacity }: { id: string, title: string, items?: Personnel[], capacity: number }) {
+function DroppableContainer({ id, title, items = [], capacity, attributeKeys }: { id: string, title: string, items?: Personnel[], capacity: number, attributeKeys: string[] }) {
     const { setNodeRef } = useSortable({ id });
 
     const mCount = items.filter(p => p.gender === 'M').length;
@@ -136,7 +144,7 @@ function DroppableContainer({ id, title, items = [], capacity }: { id: string, t
 
     return (
         <Card style={{
-            minWidth: '300px',
+            minWidth: '320px',
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
@@ -180,7 +188,7 @@ function DroppableContainer({ id, title, items = [], capacity }: { id: string, t
                     paddingRight: '4px',
                 }}>
                     {items.map((p) => (
-                        <SortableItem key={p.id} id={p.id} person={p} />
+                        <SortableItem key={p.id} id={p.id} person={p} attributeKeys={attributeKeys} />
                     ))}
                     {items.length === 0 && (
                         <div style={{
@@ -484,12 +492,12 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                 {viewMode === 'kanban' && (
                     <div style={{ display: 'flex', gap: '24px', overflowX: 'auto', height: '100%', paddingBottom: '24px' }}>
                         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-                            <div style={{ minWidth: '300px', height: '100%' }}>
-                                <DroppableContainer id="unassigned" title="미배정 인원" items={items['unassigned']} capacity={999} />
+                            <div style={{ minWidth: '320px', height: '100%' }}>
+                                <DroppableContainer id="unassigned" title="미배정 인원" items={items['unassigned']} capacity={999} attributeKeys={attributeKeys} />
                             </div>
                             {initialTeams.map((team) => (
-                                <div key={team.id} style={{ minWidth: '300px', height: '100%' }}>
-                                    <DroppableContainer id={team.id} title={team.name} items={items[team.id]} capacity={team.capacity} />
+                                <div key={team.id} style={{ minWidth: '320px', height: '100%' }}>
+                                    <DroppableContainer id={team.id} title={team.name} items={items[team.id]} capacity={team.capacity} attributeKeys={attributeKeys} />
                                 </div>
                             ))}
                             <DragOverlay>

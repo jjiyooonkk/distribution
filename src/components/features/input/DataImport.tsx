@@ -135,20 +135,22 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 }
             });
 
-            const mappedHeaders = [mapping.name, mapping.gender, mapping.studentId, ...extraMappings.map(m => m.header)];
+            const mappedHeaders = [mapping.name, mapping.gender, mapping.studentId, ...extraMappings.map(m => m.header)].filter(Boolean);
 
             return {
-                id: `p-${idx}`, // 데이터 무결성을 위해 항상 유니크한 인덱스 기반 ID 사용
+                id: `p-${idx}`,
                 name: String(nameVal).trim(),
                 gender: (genderIdx >= 0 ? (isMale ? 'M' : 'F') : undefined) as 'M' | 'F' | undefined,
-                history: [], // History는 이제 tags나 attributes에서 관리
+                history: [],
                 tags,
+                // UI 및 AI 분석용 (매핑된 것만)
                 attributes: headers.reduce((acc, header, hIdx) => {
-                    if (header && row[hIdx] !== undefined) {
+                    if (header && row[hIdx] !== undefined && mappedHeaders.includes(header)) {
                         acc[header] = row[hIdx];
                     }
                     return acc;
                 }, {} as Record<string, any>),
+                // 최종 엑셀 내보내기용 (전체)
                 fullAttributes: headers.reduce((acc, header, hIdx) => {
                     if (header) {
                         acc[header] = row[hIdx];

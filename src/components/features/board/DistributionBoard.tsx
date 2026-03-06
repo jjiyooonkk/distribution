@@ -333,16 +333,24 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     // 모든 인원의 attributes 목록에서 유니크한 키 값들을 추출 (화면 출력 및 AI용)
     const attributeKeys = Array.from(new Set(
         allAssigned.flatMap(p => Object.keys(p.attributes || {}))
-    )).sort((a, b) => {
-        // 이름/Name이 포함된 필드를 가장 앞으로
-        const isNameA = a.includes('이름') || a.toLowerCase().includes('name');
-        const isNameB = b.includes('이름') || b.toLowerCase().includes('name');
+    ));
+
+    // '이름' 관련 필드가 attributes에 없는 경우를 대비해 가상으로 추가 (기존 데이터 호환성)
+    const hasNameKey = attributeKeys.some(k => k.includes('이름') || k.toLowerCase().includes('name') || k.includes('성함') || k.includes('성명'));
+    if (!hasNameKey) {
+        attributeKeys.unshift('이름');
+    }
+
+    attributeKeys.sort((a, b) => {
+        // 이름/Name/성함/성명 필드가 포함된 필드를 가장 앞으로
+        const isNameA = a.includes('이름') || a.toLowerCase().includes('name') || a.includes('성함') || a.includes('성명');
+        const isNameB = b.includes('이름') || b.toLowerCase().includes('name') || b.includes('성함') || b.includes('성명');
         if (isNameA && !isNameB) return -1;
         if (!isNameA && isNameB) return 1;
 
-        // 학번/ID가 포함된 필드를 그 다음으로
-        const isIdA = a.includes('학번') || a.toLowerCase().includes('id');
-        const isIdB = b.includes('학번') || b.toLowerCase().includes('id');
+        // 학번/ID/No 필드가 포함된 필드를 그 다음으로
+        const isIdA = a.includes('학번') || a.toLowerCase().includes('id') || a.includes('번호') || a.toLowerCase().includes('no');
+        const isIdB = b.includes('학번') || b.toLowerCase().includes('id') || b.includes('번호') || b.toLowerCase().includes('no');
         if (isIdA && !isIdB) return -1;
         if (!isIdA && isIdB) return 1;
 
@@ -521,11 +529,21 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                         borderBottom: '1px solid #e2e8f0',
                                         background: p.teamName === '미배정' ? '#fff1f2' : (idx % 2 === 0 ? 'white' : '#fcfcfc')
                                     }}>
-                                        {attributeKeys.map(key => (
-                                            <Td key={key} style={{ ...ExcelCellStyle, fontWeight: (key.includes('이름') || key.toLowerCase().includes('name')) ? 700 : 400 }}>
-                                                {p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-'}
-                                            </Td>
-                                        ))}
+                                        {attributeKeys.map(key => {
+                                            const isNameKey = key.includes('이름') || key.toLowerCase().includes('name') || key.includes('성함') || key.includes('성명');
+                                            let value = p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-';
+
+                                            // 이름 키인데 attributes에 값이 없으면 p.name으로 폴백
+                                            if (isNameKey && (value === '-' || !value)) {
+                                                value = p.name;
+                                            }
+
+                                            return (
+                                                <Td key={key} style={{ ...ExcelCellStyle, fontWeight: isNameKey ? 700 : 400 }}>
+                                                    {value}
+                                                </Td>
+                                            );
+                                        })}
                                         <Td style={ExcelCellStyle}>
                                             <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
                                         </Td>

@@ -230,6 +230,7 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
     const [agentLogs, setAgentLogs] = useState<string[]>([]);
 
     const handleRunAgent = async (command: string) => {
+        setAgentRationale(undefined);
         setIsAgentLoading(true);
         try {
             const currentPersonnel: Personnel[] = Object.entries(items).flatMap(([teamId, list]) =>
@@ -241,7 +242,14 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ personnel: currentPersonnel, teams: currentTeams, command })
             });
+
             const data = await response.json();
+
+            if (!response.ok) {
+                const errorMsg = data.details || data.error || "Server Error (AI 호출 할당량 초과일 수 있습니다)";
+                throw new Error(errorMsg);
+            }
+
             if (data.rationale) {
                 setAgentRationale(data.rationale);
                 setAgentLogs(data.logs || []);
@@ -250,37 +258,33 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
             if (data.assignments && data.assignments.length > 0) {
                 setItems(prev => {
                     const newItems = { ...prev };
-                    // 모든 리스트에서 인원 초기화 방지를 위해 먼저 전체 인원 풀을 확보
                     const allPeople = Object.values(prev).flat();
 
-                    // 모든 팀 리스트 비우기 (새 배정 적용을 위해)
+                    // 배정 결과가 있을 때만 기존 조 편성을 비움
                     Object.keys(newItems).forEach(key => {
                         newItems[key] = [];
                     });
 
-                    // AI의 배정 결과 적용
                     const processedAssignments = data.assignments || [];
                     const assignedIdsInThisRun = new Set<string>();
 
                     processedAssignments.forEach((as: { personId: string; teamId: string }) => {
                         const person = allPeople.find(p => p.id === as.personId || p.name === as.personId);
-                        // 한 사람이 여러 팀에 배정되지 않도록 체크
                         if (person && newItems[as.teamId] && !assignedIdsInThisRun.has(person.id)) {
                             newItems[as.teamId].push({ ...person, assignedTeamId: as.teamId });
                             assignedIdsInThisRun.add(person.id);
                         }
                     });
 
-                    // 배정되지 않은 남은 인원 처리
                     const remaining = allPeople.filter(p => !assignedIdsInThisRun.has(p.id));
                     newItems['unassigned'] = remaining;
 
                     return newItems;
                 });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            setAgentRationale("에러가 발생했습니다. 다시 시도해주세요.");
+            setAgentRationale(`⚠️ 안내: ${error.message || "AI 에이전트와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."}`);
         } finally {
             setIsAgentLoading(false);
         }

@@ -113,8 +113,12 @@ export default function NewProjectPage() {
     }, [constraints]);
 
     const handleRunAgent = async (command: string) => {
+        // 기존 요약 및 상태 초기화
+        setAgentRationale(undefined);
         setIsAgentLoading(true);
+
         try {
+            // 새로운 제약 조건 추가 (중복이 없을 경우)
             if (!constraints.find(c => c.text === command)) {
                 setConstraints(prev => [...prev, { id: Date.now().toString(), text: command, priority: prev.length + 1 }]);
             }
@@ -146,10 +150,7 @@ export default function NewProjectPage() {
             const data = await response.json();
 
             if (!response.ok) {
-                const errorMsg = data.details || data.error || "Server Error";
-                if (response.status === 429) {
-                    throw new Error("AI 호출 할당량(무료 버전)을 초과했습니다. 약 1분 후 다시 시도해 주세요.");
-                }
+                const errorMsg = data.details || data.error || "Server Error (AI 호출 할당량 초과일 수 있습니다)";
                 throw new Error(errorMsg);
             }
 
@@ -159,7 +160,6 @@ export default function NewProjectPage() {
             }
 
             if (data.assignments && data.assignments.length > 0) {
-                // 중복 배정 방지 (한 사람이 여러 팀에 배정되는 것 방지)
                 const uniqueAssignments = [];
                 const assignedPersonIds = new Set();
 
@@ -176,12 +176,13 @@ export default function NewProjectPage() {
 
         } catch (error: any) {
             console.error("Agent Request Error:", error);
-            setAgentRationale(`⚠️ 에러가 발생했습니다:\n${error.message || "알 수 없는 오류"}`);
+            setAgentRationale(`⚠️ 안내: ${error.message || "AI 에이전트와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."}`);
         } finally {
             setIsAgentLoading(false);
         }
     };
 
+    // --- DND Kit Sensors & Handlers (Must be at component level) ---
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -198,7 +199,6 @@ export default function NewProjectPage() {
                 const newIndex = items.findIndex((i) => i.id === over.id);
                 const newArr = arrayMove(items, oldIndex, newIndex);
 
-                // priority 값 업데이트 (1부터 시작)
                 return newArr.map((item, idx) => ({
                     ...item,
                     priority: idx + 1
@@ -220,7 +220,6 @@ export default function NewProjectPage() {
     const handleDataUpdate = (data: Personnel[], headers: string[]) => {
         setImportedData(data);
         setColumnHeaders(headers);
-        // 새로운 데이터가 업로드되면 이전 AI 배정 결과는 초기화 (ID 불일치 및 중복 방지)
         setAgentAssignments([]);
         setAgentRationale(undefined);
         setAgentLogs([]);
@@ -228,7 +227,6 @@ export default function NewProjectPage() {
 
     const handleDataImportComplete = (importedData: Personnel[], headers: string[]) => {
         setColumnHeaders(headers);
-        // 기존 팀 배정 인원 초기화 (데이터가 바뀌었을 수 있으므로 항상 최신 importedData 기준으로 재배정)
         let initialTeams: TeamConfig[] = teams.map(t => ({ ...t, members: [] }));
         let remainingPersonnel = [...importedData];
 

@@ -46,16 +46,25 @@ export const AgentChat: React.FC<AgentChatProps> = ({ onRunAgent, isLoading, las
     // Handle new assistant responses
     React.useEffect(() => {
         if (lastRationale && !isLoading) {
-            // Check if this rationale is already in messages (simple check by content)
-            const exists = messages.some(m => m.role === 'assistant' && m.content === lastRationale);
-            if (!exists) {
+            // content와 logs를 결합하여 유니크한 키 생성 (중복 메시지 추가 방지)
+            const currentContent = lastRationale;
+            const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+
+            // 마지막 메시지가 이미 현재의 rationale과 같다면 추가하지 않음
+            if (lastMsg?.content !== currentContent) {
                 setMessages(prev => [...prev, {
-                    id: `ai-${Date.now()}`,
+                    id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
                     role: 'assistant',
-                    content: lastRationale,
+                    content: currentContent,
                     logs: logs,
                     timestamp: Date.now()
                 }]);
+
+                // 새로운 메시지가 오면 채팅창 하단으로 스크롤
+                setTimeout(() => {
+                    const bottom = document.getElementById('chat-bottom');
+                    bottom?.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
             }
         }
     }, [lastRationale, isLoading, logs]);

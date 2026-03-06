@@ -122,6 +122,9 @@ export const distributePersonnel = (
     // (Removed redeclaration of assignedIds)
 
     for (const person of unassigned) {
+        // 이미 다른 규칙이나 이전 루프에서 배정된 경우 건너뜀 (중복 방지 필수)
+        if (assignedIds.has(person.id)) continue;
+
         // Sort teams by current usage ratio map to find least filled teams
         // Also consider gender balance: if person is Male, prioritize teams with lower Male%
 

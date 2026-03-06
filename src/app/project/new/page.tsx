@@ -190,8 +190,10 @@ export default function NewProjectPage() {
             const assignedIds = new Set<string>();
 
             agentAssignments.forEach(assign => {
-                const person = importedData.find(p => p.id === assign.personId);
+                // ID 또는 이름으로 사람 찾기
+                const person = importedData.find(p => p.id === assign.personId || p.name === assign.personId);
                 const teamExists = teamMap.has(assign.teamId);
+
                 // 이미 배정된 사람이면 건너뜀 (중복 방지)
                 if (person && teamExists && !assignedIds.has(person.id)) {
                     teamMap.get(assign.teamId)?.push({

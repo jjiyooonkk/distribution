@@ -138,7 +138,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
             const mappedHeaders = [mapping.name, mapping.gender, mapping.studentId, ...extraMappings.map(m => m.header)];
 
             return {
-                id: studentId || `p-${idx}`, // 학번이 있으면 ID로 사용, 없으면 인덱스
+                id: `p-${idx}`, // 데이터 무결성을 위해 항상 유니크한 인덱스 기반 ID 사용
                 name: String(nameVal).trim(),
                 gender: (genderIdx >= 0 ? (isMale ? 'M' : 'F') : undefined) as 'M' | 'F' | undefined,
                 history: [], // History는 이제 tags나 attributes에서 관리

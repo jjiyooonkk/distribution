@@ -502,62 +502,83 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', backgroundColor: 'white' }}>
                             <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
                                 <tr>
+                                    {viewMode === 'team' && <Th style={ExcelHeaderStyle}>배정된 팀</Th>}
                                     {attributeKeys.map(key => (
                                         <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
                                     ))}
-                                    <Th style={ExcelHeaderStyle}>배정된 팀</Th>
+                                    {viewMode === 'list' && <Th style={ExcelHeaderStyle}>배정된 팀</Th>}
                                     <Th style={ExcelHeaderStyle}>비고(이력)</Th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {(viewMode === 'team'
-                                    ? [...allAssigned].sort((a, b) => {
-                                        if (a.teamSortIndex !== b.teamSortIndex) return a.teamSortIndex - b.teamSortIndex;
+                                {(() => {
+                                    const sortedPeople = (viewMode === 'team'
+                                        ? [...allAssigned].sort((a, b) => {
+                                            if (a.teamSortIndex !== b.teamSortIndex) return a.teamSortIndex - b.teamSortIndex;
+                                            const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
+                                            const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                            const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                            if (yearA !== yearB) return yearA - yearB;
+                                            return a.name.localeCompare(b.name, 'ko');
+                                        })
+                                        : [...allAssigned].sort((a, b) => {
+                                            const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
+                                            const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                            const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                            if (yearA !== yearB) return yearA - yearB;
+                                            return a.name.localeCompare(b.name, 'ko');
+                                        })
+                                    );
 
-                                        const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
-                                        const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                        const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
+                                    let lastTeamName = "";
+                                    return sortedPeople.map((p, idx) => {
+                                        const showTeamHeader = viewMode === 'team' && p.teamName !== lastTeamName;
+                                        if (showTeamHeader) lastTeamName = p.teamName;
 
-                                        if (yearA !== yearB) return yearA - yearB;
-                                        return a.name.localeCompare(b.name, 'ko');
-                                    })
-                                    : [...allAssigned].sort((a, b) => {
-                                        const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
-                                        const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                        const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                        if (yearA !== yearB) return yearA - yearB;
-                                        return a.name.localeCompare(b.name, 'ko');
-                                    })
-                                ).map((p, idx) => (
-                                    <tr key={p.id} style={{
-                                        borderBottom: '1px solid #e2e8f0',
-                                        background: p.teamName === '미배정' ? '#fff1f2' : (idx % 2 === 0 ? 'white' : '#fcfcfc')
-                                    }}>
-                                        {attributeKeys.map(key => {
-                                            const isNameKey = key.includes('이름') || key.toLowerCase().includes('name') || key.includes('성함') || key.includes('성명');
-                                            let value = p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-';
+                                        return (
+                                            <React.Fragment key={p.id}>
+                                                {showTeamHeader && (
+                                                    <tr style={{ background: '#f1f5f9' }}>
+                                                        <td colSpan={attributeKeys.length + 2} style={{ padding: '8px 16px', fontWeight: 800, fontSize: '0.8rem', color: 'var(--primary)', border: '1px solid #e2e8f0' }}>
+                                                            🏢 {p.teamName} ({sortedPeople.filter(sp => sp.teamName === p.teamName).length}명)
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                <tr style={{
+                                                    borderBottom: '1px solid #e2e8f0',
+                                                    background: p.teamName === '미배정' ? '#fff1f2' : (idx % 2 === 0 ? 'white' : '#fcfcfc')
+                                                }}>
+                                                    {viewMode === 'team' && (
+                                                        <Td style={{ ...ExcelCellStyle, backgroundColor: 'rgba(99, 102, 241, 0.02)' }}>
+                                                            <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
+                                                        </Td>
+                                                    )}
+                                                    {attributeKeys.map(key => {
+                                                        const isNameKey = key.includes('이름') || key.toLowerCase().includes('name') || key.includes('성함') || key.includes('성명');
+                                                        let value = p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-';
+                                                        if (isNameKey && (value === '-' || !value)) value = p.name;
 
-                                            // 이름 키인데 attributes에 값이 없으면 p.name으로 폴백
-                                            if (isNameKey && (value === '-' || !value)) {
-                                                value = p.name;
-                                            }
-
-                                            return (
-                                                <Td key={key} style={{ ...ExcelCellStyle, fontWeight: isNameKey ? 700 : 400 }}>
-                                                    {value}
-                                                </Td>
-                                            );
-                                        })}
-                                        <Td style={ExcelCellStyle}>
-                                            <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
-                                        </Td>
-                                        <Td style={ExcelCellStyle}>
-                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                                {p.history?.map(h => <span key={h} style={{ fontSize: '0.7rem', color: '#64748b' }}>#{h}</span>)}
-                                            </div>
-                                        </Td>
-                                    </tr>
-                                ))}
+                                                        return (
+                                                            <Td key={key} style={{ ...ExcelCellStyle, fontWeight: isNameKey ? 700 : 400 }}>
+                                                                {value}
+                                                            </Td>
+                                                        );
+                                                    })}
+                                                    {viewMode === 'list' && (
+                                                        <Td style={ExcelCellStyle}>
+                                                            <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
+                                                        </Td>
+                                                    )}
+                                                    <Td style={ExcelCellStyle}>
+                                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                            {p.history?.map(h => <span key={h} style={{ fontSize: '0.7rem', color: '#64748b' }}>#{h}</span>)}
+                                                        </div>
+                                                    </Td>
+                                                </tr>
+                                            </React.Fragment>
+                                        );
+                                    });
+                                })()}
                             </tbody>
                         </table>
                     </div>

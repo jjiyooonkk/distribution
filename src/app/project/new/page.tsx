@@ -28,6 +28,7 @@ export default function NewProjectPage() {
     const [agentRationale, setAgentRationale] = useState<string | undefined>(undefined);
     const [agentLogs, setAgentLogs] = useState<string[]>([]);
     const [agentAssignments, setAgentAssignments] = useState<any[]>([]); // Store agent results
+    const [columnHeaders, setColumnHeaders] = useState<string[]>([]);
 
     // --- Persistence Logic ---
     const STORAGE_KEY = 'jinjjajal_new_project_state';
@@ -47,6 +48,7 @@ export default function NewProjectPage() {
                 if (parsed.agentRationale) setAgentRationale(parsed.agentRationale);
                 if (parsed.agentLogs) setAgentLogs(parsed.agentLogs);
                 if (parsed.agentAssignments) setAgentAssignments(parsed.agentAssignments);
+                if (parsed.columnHeaders) setColumnHeaders(parsed.columnHeaders);
             } catch (e) {
                 console.error("Failed to restore session:", e);
             }
@@ -64,7 +66,8 @@ export default function NewProjectPage() {
             importedData,
             agentRationale,
             agentLogs,
-            agentAssignments
+            agentAssignments,
+            columnHeaders
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
     }, [step, teams, unassigned, logs, projectName, importedData, agentRationale, agentLogs, agentAssignments]);
@@ -171,15 +174,17 @@ export default function NewProjectPage() {
         setStep(2);
     };
 
-    const handleDataUpdate = (data: Personnel[]) => {
+    const handleDataUpdate = (data: Personnel[], headers: string[]) => {
         setImportedData(data);
+        setColumnHeaders(headers);
         // 새로운 데이터가 업로드되면 이전 AI 배정 결과는 초기화 (ID 불일치 및 중복 방지)
         setAgentAssignments([]);
         setAgentRationale(undefined);
         setAgentLogs([]);
     };
 
-    const handleDataImportComplete = (importedData: Personnel[]) => {
+    const handleDataImportComplete = (importedData: Personnel[], headers: string[]) => {
+        setColumnHeaders(headers);
         // 기존 팀 배정 인원 초기화 (데이터가 바뀌었을 수 있으므로 항상 최신 importedData 기준으로 재배정)
         let initialTeams: TeamConfig[] = teams.map(t => ({ ...t, members: [] }));
         let remainingPersonnel = [...importedData];
@@ -376,7 +381,7 @@ export default function NewProjectPage() {
                                         </div>
                                         <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>제약 로그: <strong>{logs.length}건</strong></div>
                                     </header>
-                                    <DistributionBoard initialTeams={teams} unassigned={unassigned} onExport={() => setIsModalOpen(true)} />
+                                    <DistributionBoard initialTeams={teams} unassigned={unassigned} columnHeaders={columnHeaders} onExport={() => setIsModalOpen(true)} />
                                 </div>
                             </div>
                         </>

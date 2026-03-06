@@ -8,8 +8,8 @@ import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Plus, Trash2, Sparkl
 import { Personnel } from '@/types';
 
 interface DataImportProps {
-    onComplete: (data: Personnel[]) => void;
-    onDataUpdate?: (data: Personnel[]) => void;
+    onComplete: (data: Personnel[], columnHeaders: string[]) => void;
+    onDataUpdate?: (data: Personnel[], columnHeaders: string[]) => void;
     onBack: () => void;
 }
 
@@ -163,12 +163,12 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
 
     React.useEffect(() => {
         if (onDataUpdate) {
-            onDataUpdate(processedPersonnel);
+            onDataUpdate(processedPersonnel, visibleHeaders);
         }
-    }, [processedPersonnel, onDataUpdate]);
+    }, [processedPersonnel, visibleHeaders, onDataUpdate]);
 
     const finalizeImport = () => {
-        onComplete(processedPersonnel);
+        onComplete(processedPersonnel, visibleHeaders);
     };
 
     return (

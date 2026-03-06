@@ -206,10 +206,11 @@ function DroppableContainer({ id, title, items = [], capacity }: { id: string, t
 interface BoardProps {
     initialTeams: TeamConfig[];
     unassigned: Personnel[];
+    columnHeaders?: string[];
     onExport: () => void;
 }
 
-export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassigned, onExport }) => {
+export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassigned, columnHeaders = [], onExport }) => {
     const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'team'>('kanban');
     const [items, setItems] = useState<{ [key: string]: Personnel[] }>({
         'unassigned': unassigned,
@@ -334,10 +335,11 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
         }))
     );
 
-    // 모든 인원의 attributes 목록에서 유니크한 키 값들을 추출 (화면 출력 및 AI용)
-    const attributeKeys = Array.from(new Set(
-        allAssigned.flatMap(p => Object.keys(p.attributes || {}))
-    ));
+    // 모든 인원의 attributes 목록에서 유니크한 키 값들을 추출
+    // 만약 상위에서 columnHeaders가 넘어오면 그 순서를 최우선으로 사용
+    const attributeKeys = columnHeaders.length > 0
+        ? columnHeaders
+        : Array.from(new Set(allAssigned.flatMap(p => Object.keys(p.attributes || {}))));
 
     // '이름' 관련 필드가 attributes에 없는 경우를 대비해 가상으로 추가 (기존 데이터 호환성)
     const hasNameKey = attributeKeys.some(k => k.includes('이름') || k.toLowerCase().includes('name') || k.includes('성함') || k.includes('성명'));
@@ -501,33 +503,32 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                     <div className="glass-panel" style={{ height: '100%', overflow: 'auto', padding: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', backgroundColor: 'white' }}>
                             <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
-                                <tr>
-                                    {viewMode === 'team' && <Th style={ExcelHeaderStyle}>배정된 팀</Th>}
-                                    {attributeKeys.map(key => (
-                                        <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
-                                    ))}
-                                    {viewMode === 'list' && <Th style={ExcelHeaderStyle}>배정된 팀</Th>}
-                                    <Th style={ExcelHeaderStyle}>비고(이력)</Th>
-                                </tr>
+                                {viewMode === 'list' ? (
+                                    <tr>
+                                        {attributeKeys.map(key => (
+                                            <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
+                                        ))}
+                                        <Th style={ExcelHeaderStyle}>배정된 팀</Th>
+                                        <Th style={ExcelHeaderStyle}>비고(이력)</Th>
+                                    </tr>
+                                ) : (
+                                    <tr>
+                                        <Th style={ExcelHeaderStyle}>배정된 팀</Th>
+                                        {attributeKeys.map(key => (
+                                            <Th key={key} style={ExcelHeaderStyle}>{key}</Th>
+                                        ))}
+                                        <Th style={ExcelHeaderStyle}>비고(이력)</Th>
+                                    </tr>
+                                )}
                             </thead>
                             <tbody>
                                 {(() => {
                                     const sortedPeople = (viewMode === 'team'
                                         ? [...allAssigned].sort((a, b) => {
                                             if (a.teamSortIndex !== b.teamSortIndex) return a.teamSortIndex - b.teamSortIndex;
-                                            const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
-                                            const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                            const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                            if (yearA !== yearB) return yearA - yearB;
                                             return a.name.localeCompare(b.name, 'ko');
                                         })
-                                        : [...allAssigned].sort((a, b) => {
-                                            const yearKey = attributeKeys.find(k => k.includes('학번') || k.replace(/\s/g, '').includes('학번')) || '학번';
-                                            const yearA = parseInt(String(a.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                            const yearB = parseInt(String(b.attributes?.[yearKey] || '9999').replace(/[^0-9]/g, '')) || 9999;
-                                            if (yearA !== yearB) return yearA - yearB;
-                                            return a.name.localeCompare(b.name, 'ko');
-                                        })
+                                        : [...allAssigned].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
                                     );
 
                                     let lastTeamName = "";
@@ -548,11 +549,13 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                                     borderBottom: '1px solid #e2e8f0',
                                                     background: p.teamName === '미배정' ? '#fff1f2' : (idx % 2 === 0 ? 'white' : '#fcfcfc')
                                                 }}>
+                                                    {/* Team view: 배정된 팀 first */}
                                                     {viewMode === 'team' && (
                                                         <Td style={{ ...ExcelCellStyle, backgroundColor: 'rgba(99, 102, 241, 0.02)' }}>
                                                             <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
                                                         </Td>
                                                     )}
+
                                                     {attributeKeys.map(key => {
                                                         const isNameKey = key.includes('이름') || key.toLowerCase().includes('name') || key.includes('성함') || key.includes('성명');
                                                         let value = p.attributes && p.attributes[key] !== undefined ? String(p.attributes[key]) : '-';
@@ -564,11 +567,14 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                                                             </Td>
                                                         );
                                                     })}
+
+                                                    {/* Individual view: 배정된 팀 last */}
                                                     {viewMode === 'list' && (
                                                         <Td style={ExcelCellStyle}>
                                                             <span style={{ fontWeight: 800, color: p.teamName === '미배정' ? 'var(--error)' : 'var(--primary)' }}>{p.teamName}</span>
                                                         </Td>
                                                     )}
+
                                                     <Td style={ExcelCellStyle}>
                                                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                                             {p.history?.map(h => <span key={h} style={{ fontSize: '0.7rem', color: '#64748b' }}>#{h}</span>)}

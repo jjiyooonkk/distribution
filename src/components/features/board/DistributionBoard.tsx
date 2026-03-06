@@ -258,17 +258,21 @@ export const DistributionBoard: React.FC<BoardProps> = ({ initialTeams, unassign
                     });
 
                     // AI의 배정 결과 적용
-                    data.assignments.forEach((as: { personId: string; teamId: string }) => {
+                    const processedAssignments = data.assignments || [];
+                    const assignedIdsInThisRun = new Set<string>();
+
+                    processedAssignments.forEach((as: { personId: string; teamId: string }) => {
                         const person = allPeople.find(p => p.id === as.personId || p.name === as.personId);
-                        if (person && newItems[as.teamId]) {
+                        // 한 사람이 여러 팀에 배정되지 않도록 체크
+                        if (person && newItems[as.teamId] && !assignedIdsInThisRun.has(person.id)) {
                             newItems[as.teamId].push({ ...person, assignedTeamId: as.teamId });
+                            assignedIdsInThisRun.add(person.id);
                         }
                     });
 
                     // 배정되지 않은 남은 인원 처리
-                    const assignedIds = new Set(data.assignments.map((as: any) => as.personId));
-                    const remaining = allPeople.filter(p => !assignedIds.has(p.id) && !assignedIds.has(p.name));
-                    newItems['unassigned'] = [...(newItems['unassigned'] || []), ...remaining];
+                    const remaining = allPeople.filter(p => !assignedIdsInThisRun.has(p.id));
+                    newItems['unassigned'] = remaining;
 
                     return newItems;
                 });

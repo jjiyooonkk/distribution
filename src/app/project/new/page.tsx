@@ -138,7 +138,18 @@ export default function NewProjectPage() {
             }
 
             if (data.assignments && data.assignments.length > 0) {
-                setAgentAssignments(data.assignments);
+                // 중복 배정 방지 (한 사람이 여러 팀에 배정되는 것 방지)
+                const uniqueAssignments = [];
+                const assignedPersonIds = new Set();
+
+                for (const assign of data.assignments) {
+                    if (!assignedPersonIds.has(assign.personId)) {
+                        uniqueAssignments.push(assign);
+                        assignedPersonIds.add(assign.personId);
+                    }
+                }
+
+                setAgentAssignments(uniqueAssignments);
                 setAgentRationale(prev => (prev || "") + "\n\n✅ 배정 결과가 저장되었습니다. '다음' 버튼을 누르면 인원 분배 결과에 반영됩니다.");
             }
 
@@ -160,6 +171,14 @@ export default function NewProjectPage() {
         setStep(2);
     };
 
+    const handleDataUpdate = (data: Personnel[]) => {
+        setImportedData(data);
+        // 새로운 데이터가 업로드되면 이전 AI 배정 결과는 초기화 (ID 불일치 및 중복 방지)
+        setAgentAssignments([]);
+        setAgentRationale(undefined);
+        setAgentLogs([]);
+    };
+
     const handleDataImportComplete = (importedData: Personnel[]) => {
         // 기존 팀 배정 인원 초기화 (데이터가 바뀌었을 수 있으므로 항상 최신 importedData 기준으로 재배정)
         let initialTeams: TeamConfig[] = teams.map(t => ({ ...t, members: [] }));
@@ -173,7 +192,8 @@ export default function NewProjectPage() {
             agentAssignments.forEach(assign => {
                 const person = importedData.find(p => p.id === assign.personId);
                 const teamExists = teamMap.has(assign.teamId);
-                if (person && teamExists) {
+                // 이미 배정된 사람이면 건너뜀 (중복 방지)
+                if (person && teamExists && !assignedIds.has(person.id)) {
                     teamMap.get(assign.teamId)?.push({
                         ...person,
                         assignedTeamId: assign.teamId
@@ -340,7 +360,7 @@ export default function NewProjectPage() {
                                         <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 2. 데이터 가져오기</h2>
                                         <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>인원 명단(Excel/CSV)을 업로드하세요.</p>
                                     </div>
-                                    <DataImport onComplete={handleDataImportComplete} onDataUpdate={setImportedData} onBack={() => setStep(1)} />
+                                    <DataImport onComplete={handleDataImportComplete} onDataUpdate={handleDataUpdate} onBack={() => setStep(1)} />
                                     <AgentChat onRunAgent={handleRunAgent} isLoading={isAgentLoading} lastRationale={agentRationale} logs={agentLogs} />
                                 </div>
                             </div>

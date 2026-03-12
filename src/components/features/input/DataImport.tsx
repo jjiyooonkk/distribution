@@ -4,14 +4,13 @@ import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Plus, Trash2, Sparkles } from 'lucide-react';
+import { Upload, FileSpreadsheet, Plus, Trash2, Sparkles } from 'lucide-react';
 import { Personnel } from '@/types';
 
 interface DataImportProps {
     onComplete: (data: Personnel[], columnHeaders: string[]) => void;
     onDataUpdate?: (data: Personnel[], columnHeaders: string[]) => void;
     onBack: () => void;
-    teams?: { id: string; name: string }[];
 }
 
 type ColumnMapping = {
@@ -26,7 +25,7 @@ type ExtraMapping = {
     header: string;
 };
 
-export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate, onBack, teams = [] }) => {
+export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate, onBack }) => {
     const [file, setFile] = useState<File | null>(null);
     const [data, setData] = useState<any[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
@@ -38,8 +37,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
     const [extraMappings, setExtraMappings] = useState<ExtraMapping[]>([]);
     const [isDragging, setIsDragging] = useState(false);
 
-    const [manualAssignments, setManualAssignments] = useState<Record<string, string>>({});
-    const [searchQuery, setSearchQuery] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +105,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
         ));
     };
 
-    // Lift state up whenever data changes
     const visibleHeaders = React.useMemo(() => {
         const mapped = [mapping.name, mapping.gender, mapping.studentId].filter(Boolean);
         const extras = extraMappings.map(m => m.header).filter(Boolean);
@@ -128,7 +124,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
             const isMale = genderIdx >= 0 && (String(row[genderIdx]).trim().toUpperCase().startsWith('M') || String(row[genderIdx]).trim() === '남');
             const studentId = studentIdIdx >= 0 ? String(row[studentIdIdx] || '') : '';
 
-            // AI에게 전달할 추가 태그 추출
             const tags: string[] = [];
             if (studentId) tags.push(`학번: ${studentId}`);
 
@@ -147,15 +142,12 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 gender: (genderIdx >= 0 ? (isMale ? 'M' : 'F') : undefined) as 'M' | 'F' | undefined,
                 history: [],
                 tags,
-                assignedTeamId: manualAssignments[pId] || undefined,
-                // UI 및 AI 분석용 (매핑된 것만)
                 attributes: headers.reduce((acc, header, hIdx) => {
                     if (header && row[hIdx] !== undefined && mappedHeaders.includes(header)) {
                         acc[header] = row[hIdx];
                     }
                     return acc;
                 }, {} as Record<string, any>),
-                // 최종 엑셀 내보내기용 (전체)
                 fullAttributes: headers.reduce((acc, header, hIdx) => {
                     if (header) {
                         acc[header] = row[hIdx];
@@ -164,8 +156,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 }, {} as Record<string, any>)
             };
         }).filter(p => !!p.name);
-    }, [data, headers, mapping, extraMappings, manualAssignments]);
-
+    }, [data, headers, mapping, extraMappings]);
 
     React.useEffect(() => {
         if (onDataUpdate) {
@@ -177,21 +168,8 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
         onComplete(processedPersonnel, visibleHeaders);
     };
 
-    const filteredPreview = React.useMemo(() => {
-        if (!searchQuery) return processedPersonnel.slice(0, 10);
-        return processedPersonnel.filter(p => p.name.includes(searchQuery)).slice(0, 20);
-    }, [processedPersonnel, searchQuery]);
-
-    const handleManualAssign = (pId: string, teamId: string) => {
-        setManualAssignments(prev => ({
-            ...prev,
-            [pId]: teamId
-        }));
-    };
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Upload Zone */}
             {!file ? (
                 <label
                     onDragOver={handleDragOver}
@@ -216,7 +194,6 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     <div style={{ textAlign: 'center' }}>
                         <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>파일을 클릭하거나 여기로 드래그하세요</p>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>지원 형식: <strong>.xlsx</strong> (추천)</p>
-                        <p style={{ color: 'var(--error)', fontSize: '0.8rem', marginTop: '4px' }}>※ CSV 파일은 컬럼 인식이 원활하지 않을 수 있습니다.</p>
                     </div>
                     <input
                         type="file"
@@ -235,13 +212,12 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{data.length} 건의 데이터 발견</p>
                         </div>
                     </div>
-                    <Button variant="ghost" onClick={() => { setFile(null); setData([]); }} style={{ color: 'var(--error)' }}>
+                    <Button variant="ghost" onClick={() => { setFile(null); setData([]); setHeaders([]); }} style={{ color: 'var(--error)' }}>
                         제거
                     </Button>
                 </Card>
             )}
 
-            {/* Mapping Section */}
             {data.length > 0 && (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
                     <div style={{
@@ -258,19 +234,18 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     }}>
                         <Sparkles size={18} />
                         <div>
-                            <strong>토큰 절약 모드 활성화:</strong> 배정 시 AI에게는 여기서 <strong>연결(매핑)한 컬럼</strong>만 전달됩니다.
-                            그 외 모든 컬럼은 데이터 무결성을 위해 최종 결과에만 포함됩니다.
+                            <strong>컬럼 매핑:</strong> 배정에 사용할 핵심 데이터를 연결해 주세요. 나머지 데이터는 결과에 자동 포함됩니다.
                         </div>
                     </div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>컬럼 매핑 (AI 배정 고려 항목)</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '32px' }}>
                         {[
                             { label: '이름', key: 'name', req: true },
                             { label: '학번', key: 'studentId', req: false },
                             { label: '성별', key: 'gender', req: true }
                         ].map((field) => (
                             <div key={field.key}>
-                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>
                                     {field.label} {field.req && <span style={{ color: 'var(--error)' }}>*</span>}
                                 </label>
                                 <select
@@ -286,34 +261,24 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>추가 항목 (AI 배정 시 참고)</h4>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <Button variant="outline" onClick={addExtraMapping} style={{ fontSize: '0.8rem', height: '32px' }}>
-                                <Plus size={14} /> 직접 추가
-                            </Button>
-                        </div>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>추가 참고 항목</h4>
+                        <Button variant="outline" onClick={addExtraMapping} style={{ fontSize: '0.8rem', height: '32px' }}>
+                            <Plus size={14} /> 직접 추가
+                        </Button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                         {extraMappings.map((m) => (
-                            <div key={m.id} style={{ position: 'relative' }}>
+                            <div key={m.id} style={{ position: 'relative', padding: '12px', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                                     <input
                                         type="text"
-                                        placeholder="새 컬럼 이름"
+                                        placeholder="항목 이름"
                                         value={m.label}
                                         onChange={(e) => updateExtraMapping(m.id, 'label', e.target.value)}
-                                        style={{
-                                            fontSize: '0.85rem',
-                                            padding: '4px 8px',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '4px',
-                                            width: '60%'
-                                        }}
+                                        style={{ fontSize: '0.85rem', padding: '4px 8px', border: '1px solid var(--border)', borderRadius: '4px', width: '70%' }}
                                     />
-                                    <button
-                                        onClick={() => removeExtraMapping(m.id)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-                                    >
+                                    <button onClick={() => removeExtraMapping(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)' }}>
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
@@ -327,111 +292,14 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                                 </select>
                             </div>
                         ))}
-
-                        {/* Add Column Button */}
-                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                            <Button
-                                variant="ghost"
-                                onClick={addExtraMapping}
-                                style={{
-                                    height: '42px',
-                                    width: '100%',
-                                    border: '1px dashed var(--border)',
-                                    color: 'var(--text-secondary)'
-                                }}
-                            >
-                                <Plus size={16} style={{ marginRight: '8px' }} /> 컬럼 추가
-                            </Button>
-                        </div>
                     </div>
-
-                    {/* Data Preview & Manual Assignment */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>데이터 미리보기 및 고정 배정 ({data.length}명 중 {searchQuery ? filteredPreview.length : Math.min(10, data.length)}명 표시)</h3>
-                        <div style={{ width: '250px' }}>
-                            <input
-                                type="text"
-                                placeholder="이름으로 검색..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '8px 12px',
-                                    fontSize: '0.85rem',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '8px',
-                                    background: 'var(--surface-hover)'
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px', maxHeight: '400px', overflowY: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                            <thead style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 10 }}>
-                                <tr>
-                                    {visibleHeaders.map((h, i) => (
-                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: 'var(--surface)' }}>
-                                            {h}
-                                        </th>
-                                    ))}
-                                    <th style={{ padding: '12px', textAlign: 'left', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', fontWeight: 700 }}>
-                                        고정 배정 (선택)
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredPreview.map((p, i) => {
-                                    // p.id is `p-${originalIdx}`. We can find original data row by split or just using the attributes
-                                    return (
-                                        <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', backgroundColor: p.assignedTeamId ? 'rgba(99, 102, 241, 0.03)' : 'inherit' }}>
-                                            {visibleHeaders.map((h, hIdx) => {
-                                                const val = p.attributes?.[h] || p.fullAttributes?.[h] || (h === mapping.name ? p.name : '');
-                                                return (
-                                                    <td key={hIdx} style={{ padding: '12px' }}>
-                                                        {val !== undefined ? String(val) : '-'}
-                                                    </td>
-                                                );
-                                            })}
-                                            <td style={{ padding: '12px' }}>
-                                                <select
-                                                    value={p.assignedTeamId || ''}
-                                                    onChange={(e) => handleManualAssign(p.id, e.target.value)}
-                                                    style={{
-                                                        padding: '4px 8px',
-                                                        borderRadius: '6px',
-                                                        border: `1px solid ${p.assignedTeamId ? 'var(--primary)' : 'var(--border)'}`,
-                                                        fontSize: '0.85rem',
-                                                        backgroundColor: p.assignedTeamId ? 'rgba(99, 102, 241, 0.05)' : 'white',
-                                                        color: p.assignedTeamId ? 'var(--primary)' : 'inherit',
-                                                        fontWeight: p.assignedTeamId ? 600 : 400
-                                                    }}
-                                                >
-                                                    <option value="">자동 배정</option>
-                                                    {teams.map(t => (
-                                                        <option key={t.id} value={t.id}>{t.name}</option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                    {data.length > 10 && !searchQuery && (
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
-                            검색 기능을 통해 특정 인원의 고정 배정을 설정할 수 있습니다.
-                        </p>
-                    )}
                 </div>
             )}
 
-            {/* Footer */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
                 <Button variant="ghost" onClick={onBack}>이전</Button>
-                <Button onClick={finalizeImport} disabled={!mapping.name || !mapping.gender}>
-                    데이터 처리 및 다음 단계
+                <Button onClick={finalizeImport} disabled={!mapping.name || !mapping.gender || data.length === 0}>
+                    다음 단계 (조별 인원 배정)
                 </Button>
             </div>
         </div>

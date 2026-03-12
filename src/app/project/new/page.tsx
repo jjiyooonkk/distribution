@@ -6,10 +6,9 @@ import { DataImport } from '@/components/features/input/DataImport';
 import { Card } from '@/components/ui/Card';
 import { TeamConfig, Personnel } from '@/types';
 import Link from 'next/link';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Plus, ArrowRight, GripVertical, X, Share2, Printer, CheckCircle2 } from 'lucide-react';
 import { distributePersonnel } from '@/lib/distributor';
 import { DistributionBoard } from '@/components/features/board/DistributionBoard';
-import { FinalPreviewModal } from '@/components/features/output/FinalPreviewModal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AgentChat } from '@/components/features/board/AgentChat';
@@ -30,28 +29,27 @@ import {
     useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, X } from 'lucide-react';
 
 export default function NewProjectPage() {
-    const [step, setStep] = useState<1 | 2 | 3>(1);
+    const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
     const [teams, setTeams] = useState<TeamConfig[]>([]);
     const [unassigned, setUnassigned] = useState<Personnel[]>([]);
     const [logs, setLogs] = useState<string[]>([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // New States
+    // UI states
     const [projectName, setProjectName] = useState('');
-    const [importedData, setImportedData] = useState<Personnel[]>([]); // Real-time data
+    const [importedData, setImportedData] = useState<Personnel[]>([]);
+    const [columnHeaders, setColumnHeaders] = useState<string[]>([]);
+
+    // AI states
     const [isAgentLoading, setIsAgentLoading] = useState(false);
     const [agentRationale, setAgentRationale] = useState<string | undefined>(undefined);
     const [agentLogs, setAgentLogs] = useState<string[]>([]);
-    const [agentAssignments, setAgentAssignments] = useState<any[]>([]); // Store agent results
-    const [columnHeaders, setColumnHeaders] = useState<string[]>([]);
+    const [constraints, setConstraints] = useState<{ id: string, text: string, priority: number }[]>([]);
 
     // --- Persistence Logic ---
-    const STORAGE_KEY = 'jinjjajal_new_project_state';
+    const STORAGE_KEY = 'jinjjajal_new_project_state_v2';
 
-    // Load state on mount
     useEffect(() => {
         const savedState = localStorage.getItem(STORAGE_KEY);
         if (savedState) {
@@ -63,17 +61,14 @@ export default function NewProjectPage() {
                 if (parsed.logs) setLogs(parsed.logs);
                 if (parsed.projectName) setProjectName(parsed.projectName);
                 if (parsed.importedData) setImportedData(parsed.importedData);
-                if (parsed.agentRationale) setAgentRationale(parsed.agentRationale);
-                if (parsed.agentLogs) setAgentLogs(parsed.agentLogs);
-                if (parsed.agentAssignments) setAgentAssignments(parsed.agentAssignments);
                 if (parsed.columnHeaders) setColumnHeaders(parsed.columnHeaders);
+                if (parsed.constraints) setConstraints(parsed.constraints);
             } catch (e) {
                 console.error("Failed to restore session:", e);
             }
         }
     }, []);
 
-    // Save state on changes
     useEffect(() => {
         const stateToSave = {
             step,
@@ -82,54 +77,30 @@ export default function NewProjectPage() {
             logs,
             projectName,
             importedData,
-            agentRationale,
-            agentLogs,
-            agentAssignments,
-            columnHeaders
+            columnHeaders,
+            constraints
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-    }, [step, teams, unassigned, logs, projectName, importedData, agentRationale, agentLogs, agentAssignments]);
+    }, [step, teams, unassigned, logs, projectName, importedData, columnHeaders, constraints]);
 
     const handleReset = () => {
         if (confirm("모든 데이터가 초기화됩니다. 계속하시겠습니까?")) {
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem('jinjjajal_agent_chat_history');
-            localStorage.removeItem('jinjjajal_constraints');
             window.location.reload();
         }
     };
 
-    const [constraints, setConstraints] = useState<{ id: string, text: string, priority: number }[]>([]);
-
-    // Load constraints from storage
-    useEffect(() => {
-        const saved = localStorage.getItem('jinjjajal_constraints');
-        if (saved) setConstraints(JSON.parse(saved));
-    }, []);
-
-    // Save constraints
-    useEffect(() => {
-        localStorage.setItem('jinjjajal_constraints', JSON.stringify(constraints));
-    }, [constraints]);
-
     const handleRunAgent = async (command: string) => {
-        // 기존 요약 및 상태 초기화
         setAgentRationale(undefined);
         setIsAgentLoading(true);
 
         try {
-            // 새로운 제약 조건 추가 (중복이 없을 경우)
             if (!constraints.find(c => c.text === command)) {
                 setConstraints(prev => [...prev, { id: Date.now().toString(), text: command, priority: prev.length + 1 }]);
             }
 
-            const currentTeams = teams.map(t => ({
-                id: t.id,
-                name: t.name,
-                capacity: t.capacity
-            }));
-
-            const personnelToSend = importedData.length > 0 ? importedData : [];
+            const currentTeams = teams.map(t => ({ id: t.id, name: t.name, capacity: t.capacity }));
             const prioritizedCommands = constraints
                 .sort((a, b) => a.priority - b.priority)
                 .map(c => c.text)
@@ -137,22 +108,22 @@ export default function NewProjectPage() {
 
             const fullCommand = prioritizedCommands ? `${prioritizedCommands}. 그리고 새 요청: ${command}` : command;
 
+            // Prepare current state (all people including already assigned)
+            const allPeople = [...unassigned];
+            teams.forEach(t => t.members?.forEach(m => allPeople.push(m)));
+
             const response = await fetch('/api/agent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    personnel: personnelToSend,
+                    personnel: allPeople,
                     teams: currentTeams,
                     command: fullCommand
                 })
             });
 
             const data = await response.json();
-
-            if (!response.ok) {
-                const errorMsg = data.details || data.error || "Server Error (AI 호출 할당량 초과일 수 있습니다)";
-                throw new Error(errorMsg);
-            }
+            if (!response.ok) throw new Error(data.details || data.error || "AI 호출 오류");
 
             if (data.rationale) {
                 setAgentRationale(data.rationale);
@@ -160,329 +131,318 @@ export default function NewProjectPage() {
             }
 
             if (data.assignments && data.assignments.length > 0) {
-                const uniqueAssignments = [];
-                const assignedPersonIds = new Set();
+                // Apply AI results
+                const newTeams = teams.map(t => ({ ...t, members: [] }));
+                const assignedIds = new Set<string>();
 
-                for (const assign of data.assignments) {
-                    if (!assignedPersonIds.has(assign.personId)) {
-                        uniqueAssignments.push(assign);
-                        assignedPersonIds.add(assign.personId);
+                data.assignments.forEach((as: any) => {
+                    const person = allPeople.find(p => p.id === as.personId || p.name === as.personId);
+                    const targetTeam = newTeams.find(t => t.id === as.teamId);
+                    if (person && targetTeam && !assignedIds.has(person.id)) {
+                        targetTeam.members = targetTeam.members || [];
+                        targetTeam.members.push({ ...person, assignedTeamId: targetTeam.id });
+                        assignedIds.add(person.id);
                     }
-                }
+                });
 
-                setAgentAssignments(uniqueAssignments);
-                setAgentRationale(prev => (prev || "") + "\n\n✅ 배정 결과가 저장되었습니다. '다음' 버튼을 누르면 인원 분배 결과에 반영됩니다.");
+                setTeams(newTeams);
+                setUnassigned(allPeople.filter(p => !assignedIds.has(p.id)));
+                setAgentRationale(prev => (prev || "") + "\n\n✅ AI가 요청에 따라 인원을 재배치했습니다. 마음에 들지 않는 부분은 직접 수정할 수 있습니다.");
             }
 
         } catch (error: any) {
-            console.error("Agent Request Error:", error);
-            setAgentRationale(`⚠️ 안내: ${error.message || "AI 에이전트와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."}`);
+            console.error(error);
+            setAgentRationale(`⚠️ 안내: ${error.message}`);
         } finally {
             setIsAgentLoading(false);
         }
     };
 
-    // --- DND Kit Sensors & Handlers (Must be at component level) ---
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
+    const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
     const handleDragEndConstraints = (event: DragEndEvent) => {
         const { active, over } = event;
-
         if (over && active.id !== over.id) {
             setConstraints((items) => {
                 const oldIndex = items.findIndex((i) => i.id === active.id);
                 const newIndex = items.findIndex((i) => i.id === over.id);
                 const newArr = arrayMove(items, oldIndex, newIndex);
-
-                return newArr.map((item, idx) => ({
-                    ...item,
-                    priority: idx + 1
-                }));
+                return newArr.map((item, idx) => ({ ...item, priority: idx + 1 }));
             });
         }
-    };
-
-    const handleFinalConfirm = () => {
-        setIsModalOpen(false);
-        alert("Distribution Approved! Notifications sent (Simulated). Redirecting to Dashboard...");
     };
 
     const handleTeamConfigComplete = (config: TeamConfig[]) => {
-        setTeams(config);
+        setTeams(config.map(t => ({ ...t, members: [] })));
         setStep(2);
     };
 
-    const handleDataUpdate = (data: Personnel[], headers: string[]) => {
-        setImportedData(data);
+    const handleDataImportComplete = (imported: Personnel[], headers: string[]) => {
         setColumnHeaders(headers);
-        setAgentAssignments([]);
-        setAgentRationale(undefined);
-        setAgentLogs([]);
+        setImportedData(imported);
+        setUnassigned(imported);
+        setStep(3);
     };
 
-    const handleDataImportComplete = (importedData: Personnel[], headers: string[]) => {
-        setColumnHeaders(headers);
-        let initialTeams: TeamConfig[] = teams.map(t => ({ ...t, members: [] }));
-        const assignedIds = new Set<string>();
-        const teamMap = new Map<string, Personnel[]>();
-        initialTeams.forEach(t => teamMap.set(t.id, []));
-
-        // 1. 수동 고정 배정 적용 (DataImport에서 사용자가 직접 지정한 경우)
-        importedData.forEach(person => {
-            if (person.assignedTeamId && teamMap.has(person.assignedTeamId)) {
-                teamMap.get(person.assignedTeamId)?.push(person);
-                assignedIds.add(person.id);
-            }
-        });
-
-        // 2. AI 에이전트 배정 적용 (수동 배정이 없는 사람에 대해서만)
-        if (agentAssignments.length > 0) {
-            agentAssignments.forEach(assign => {
-                const person = importedData.find(p => p.id === assign.personId || p.name === assign.personId);
-                const teamExists = teamMap.has(assign.teamId);
-
-                if (person && teamExists && !assignedIds.has(person.id)) {
-                    teamMap.get(assign.teamId)?.push({
-                        ...person,
-                        assignedTeamId: assign.teamId
-                    });
-                    assignedIds.add(person.id);
-                }
-            });
-        }
-
-        initialTeams = initialTeams.map(t => ({
-            ...t,
-            members: teamMap.get(t.id) || []
-        }));
-
-        const remainingPersonnel = importedData.filter(p => !assignedIds.has(p.id));
-
-        if (remainingPersonnel.length > 0) {
-            const distribution = distributePersonnel(remainingPersonnel, initialTeams);
-            initialTeams = distribution.teams;
-            setUnassigned(distribution.unassigned);
-            setLogs([...(agentLogs.length > 0 ? ["[AI] 에이전트 배정 적용 완료"] : []), ...distribution.logs]);
-        } else {
-            setUnassigned([]);
-            setLogs(agentLogs);
-        }
-
-        setTeams(initialTeams);
-        setStep(3);
+    const handleUpdateTeams = (updatedTeams: TeamConfig[], updatedUnassigned: Personnel[]) => {
+        setTeams(updatedTeams);
+        setUnassigned(updatedUnassigned);
     };
 
     return (
         <div className="container" style={{ paddingBottom: '100px' }}>
-            <header style={{
-                padding: '48px 0',
-                borderBottom: '1px solid var(--border)',
-                marginBottom: '48px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-            }}>
-                <Link href="/" style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    color: 'var(--text-secondary)',
-                    marginBottom: '8px',
-                    fontSize: '0.9rem',
-                    fontWeight: 500
-                }} className="hover-link">
+            <header style={{ padding: '48px 0', borderBottom: '1px solid var(--border)', marginBottom: '48px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 500 }} className="hover-link">
                     <ArrowLeft size={16} /> 대시보드로 돌아가기
                 </Link>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.03em', background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                         {projectName || "새 프로젝트 만들기"}
                     </h1>
-                    <Button variant="ghost" onClick={handleReset} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        초기화하고 처음부터 시작
-                    </Button>
+                    <Button variant="ghost" onClick={handleReset} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>초기화하고 처음부터 시작</Button>
                 </div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>효율적이고 공정한 인원 분배를 위한 스마트 워크스페이스</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>직관적인 인원 분배와 AI 최적화 도구</p>
             </header>
 
-            <div style={{ display: step === 3 ? 'block' : 'grid', gridTemplateColumns: (!projectName || step === 3) ? '1fr' : '320px 1fr', gap: '48px' }}>
-                {step !== 3 && projectName && (
+            <div style={{ display: (step >= 3) ? 'block' : 'grid', gridTemplateColumns: (!projectName || step >= 3) ? '1fr' : '320px 1fr', gap: '48px' }}>
+                {step < 3 && projectName && (
                     <aside>
                         <Card style={{ position: 'sticky', top: '24px', padding: '32px' }}>
-                            <div style={{ marginBottom: '24px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                Project Progress
-                            </div>
+                            <div style={{ marginBottom: '24px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>진행 상태</div>
                             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                                <StepItem number={1} title="단위(팀) 설정" active={step === 1} completed={step > 1} />
-                                <StepItem number={2} title="인원 명단 업로드" active={step === 2} completed={step > 2} />
-                                <StepItem number={3} title="결과 검토 및 확정" active={false} completed={false} />
+                                <StepItem number={1} title="단위(조) 설정" active={step === 1} completed={step > 1} />
+                                <StepItem number={2} title="명단 업로드" active={step === 2} completed={step > 2} />
+                                <StepItem number={3} title="배정 및 AI 주문" active={step === 3} completed={step > 3} />
+                                <StepItem number={4} title="최종 결과 확인" active={step === 4} completed={false} />
                             </ul>
-
-                            <div style={{ marginTop: '32px', padding: '12px', background: 'rgba(34, 197, 94, 0.05)', borderRadius: '12px', border: '1px solid rgba(34, 197, 94, 0.2)', display: 'flex', alignItems: 'center', gap: '8px', color: '#16a34a', fontSize: '0.8rem', fontWeight: 600 }}>
-                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
-                                보관함에 자동 저장됨
-                            </div>
-
-                            {constraints.length > 0 && (
-                                <div style={{ marginTop: '32px' }}>
-                                    <div style={{ marginBottom: '16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                        우선순위 설정 (내림차순)
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <DndContext
-                                            sensors={sensors}
-                                            collisionDetection={closestCenter}
-                                            onDragEnd={handleDragEndConstraints}
-                                        >
-                                            <SortableContext
-                                                items={constraints.sort((a, b) => a.priority - b.priority).map(c => c.id)}
-                                                strategy={verticalListSortingStrategy}
-                                            >
-                                                {constraints.sort((a, b) => a.priority - b.priority).map((c, i) => (
-                                                    <SortableConstraintItem
-                                                        key={c.id}
-                                                        c={c}
-                                                        index={i}
-                                                        onDelete={(id) => setConstraints(prev => prev.filter(curr => curr.id !== id))}
-                                                    />
-                                                ))}
-                                            </SortableContext>
-                                        </DndContext>
-                                    </div>
-                                </div>
-                            )}
                         </Card>
                     </aside>
                 )}
 
-                <main className="animate-fade-in" style={{ gridColumn: (step === 3 || !projectName) ? 'span 2' : 'auto' }}>
+                <main className="animate-fade-in" style={{ gridColumn: (step >= 3 || !projectName) ? 'span 2' : 'auto' }}>
                     {!projectName && (
-                        <div style={{ maxWidth: '600px', margin: '80px auto', textAlign: 'center' }}>
+                        <div style={{ maxWidth: '600px', margin: '40px auto', textAlign: 'center' }}>
                             <div className="glass-panel" style={{ padding: '64px', borderRadius: '32px' }}>
-                                <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'var(--primary-gradient)', margin: '0 auto 32px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 20px 40px -10px rgba(99, 102, 241, 0.4)' }}>
-                                    <Plus size={40} color="white" />
-                                </div>
-                                <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '16px' }}>새 프로젝트 만들기</h1>
-                                <p style={{ color: 'var(--text-secondary)', marginBottom: '40px', fontSize: '1.1rem' }}>먼저 프로젝트의 이름을 입력해 주세요.<br />입력 즉시 보관함에 안전하게 저장됩니다.</p>
-                                <div style={{ marginBottom: '24px' }}>
-                                    <Input autoFocus id="initial-project-name" placeholder="예: 2024년 신입생 오리엔테이션 조 편성" style={{ fontSize: '1.25rem', padding: '20px 24px', borderRadius: '16px', textAlign: 'center' }} onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            const val = (document.getElementById('initial-project-name') as HTMLInputElement).value;
-                                            if (val.trim()) setProjectName(val);
-                                        }
-                                    }} />
-                                </div>
-                                <Button variant="primary" style={{ width: '100%', padding: '20px', borderRadius: '16px', fontSize: '1.1rem', fontWeight: 700 }} onClick={() => {
+                                <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'var(--primary-gradient)', margin: '0 auto 32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={40} color="white" /></div>
+                                <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '16px' }}>프로젝트 이름 입력</h2>
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>워크스페이스를 식별할 이름을 정해주세요.</p>
+                                <Input autoFocus id="initial-project-name" placeholder="예: 2024 하계 엠티 조 편성" style={{ fontSize: '1.2rem', textAlign: 'center', padding: '16px', borderRadius: '12px' }} onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const val = (document.getElementById('initial-project-name') as HTMLInputElement).value;
+                                        if (val.trim()) setProjectName(val);
+                                    }
+                                }} />
+                                <Button variant="primary" style={{ width: '100%', marginTop: '24px', padding: '16px', borderRadius: '12px', fontWeight: 700 }} onClick={() => {
                                     const val = (document.getElementById('initial-project-name') as HTMLInputElement).value;
                                     if (val.trim()) setProjectName(val);
-                                }}>프로젝트 생성하고 계속하기</Button>
+                                }}>생성하고 시작하기</Button>
                             </div>
                         </div>
                     )}
 
                     {projectName && (
                         <>
-                            <div style={{ display: step === 1 ? 'block' : 'none' }}>
-                                <div>
-                                    <div style={{ marginBottom: '40px' }}>
-                                        <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Project Title</label>
-                                        <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} style={{ fontSize: '1.75rem', fontWeight: 800, padding: '0', background: 'none', border: 'none', borderBottom: '1px solid transparent' }} />
-                                    </div>
+                            {step === 1 && (
+                                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                                     <div style={{ marginBottom: '32px' }}>
-                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 1. 배정 단위(팀) 정의</h2>
-                                        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>인원을 분배할 그룹, 팀 또는 장소를 설정하세요.</p>
+                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>Step 1. 배정 단위 설정</h2>
+                                        <p style={{ color: 'var(--text-secondary)' }}>인원을 배정할 조나 팀을 생성하세요.</p>
                                     </div>
                                     <TeamConfiguration initialTeams={teams} onComplete={handleTeamConfigComplete} />
                                 </div>
-                            </div>
+                            )}
 
-                            <div style={{ display: step === 2 ? 'block' : 'none' }}>
-                                <div>
+                            {step === 2 && (
+                                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                                     <div style={{ marginBottom: '32px' }}>
-                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 2. 데이터 가져오기</h2>
-                                        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>인원 명단(Excel/CSV)을 업로드하세요.</p>
+                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>Step 2. 인원 명단 업로드</h2>
+                                        <p style={{ color: 'var(--text-secondary)' }}>엑셀 파일을 업로드하고 배정에 사용할 컬럼을 매핑하세요.</p>
                                     </div>
-                                    <DataImport onComplete={handleDataImportComplete} onDataUpdate={handleDataUpdate} onBack={() => setStep(1)} teams={teams} />
-                                    <AgentChat onRunAgent={handleRunAgent} isLoading={isAgentLoading} lastRationale={agentRationale} logs={agentLogs} />
+                                    <DataImport onComplete={handleDataImportComplete} onBack={() => setStep(1)} />
                                 </div>
-                            </div>
+                            )}
 
-                            <div style={{ display: step === 3 ? 'block' : 'none' }}>
-                                <div className="animate-in fade-in zoom-in duration-500">
-                                    <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
+                            {step === 3 && (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <div>
-                                            <Button variant="ghost" onClick={() => setStep(2)} style={{ padding: '0', height: 'auto', marginBottom: '8px' }}><ArrowLeft size={14} /> 이전 단계로</Button>
-                                            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Step 3. 최종 분배 현황판</h2>
+                                            <Button variant="ghost" onClick={() => setStep(2)} style={{ padding: '0', height: 'auto', marginBottom: '8px' }}><ArrowLeft size={14} /> 이전 단계</Button>
+                                            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Step 3. 인원 배정 및 AI 최적화</h2>
+                                            <p style={{ color: 'var(--text-secondary)' }}>각 조의 슬롯에 인원을 직접 배정하거나 AI에게 복잡한 규칙을 주문하세요.</p>
                                         </div>
-                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>제약 로그: <strong>{logs.length}건</strong></div>
+                                        <Button onClick={() => setStep(4)} variant="primary" size="lg" style={{ padding: '0 32px' }}>
+                                            최종 확정 및 결과 확인 <ArrowRight size={18} style={{ marginLeft: '8px' }} />
+                                        </Button>
                                     </header>
-                                    <DistributionBoard initialTeams={teams} unassigned={unassigned} columnHeaders={columnHeaders} onExport={() => setIsModalOpen(true)} />
+
+                                    <DistributionBoard
+                                        initialTeams={teams}
+                                        unassigned={unassigned}
+                                        columnHeaders={columnHeaders}
+                                        onExport={() => setStep(4)}
+                                        onUpdateTeams={handleUpdateTeams}
+                                    />
+
+                                    <div style={{ marginTop: '48px', borderTop: '1px solid var(--border)', paddingTop: '48px' }}>
+                                        <div style={{ marginBottom: '24px' }}>
+                                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '8px' }}>🤖 AI 에이전트 주문</h3>
+                                            <p style={{ color: 'var(--text-secondary)' }}>"나머지 인원을 성별 비율에 맞춰 배정해줘", "같은 학번끼리는 같은 조가 되지 않게 해줘" 등 자유롭게 요청하세요.</p>
+                                        </div>
+                                        <AgentChat onRunAgent={handleRunAgent} isLoading={isAgentLoading} lastRationale={agentRationale} logs={agentLogs} />
+
+                                        {constraints.length > 0 && (
+                                            <div style={{ marginTop: '24px' }}>
+                                                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px' }}>적용 중인 주문 우선순위 (드래그하여 변경)</h4>
+                                                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndConstraints}>
+                                                    <SortableContext items={constraints.sort((a, b) => a.priority - b.priority).map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                            {constraints.sort((a, b) => a.priority - b.priority).map((c, i) => (
+                                                                <SortableConstraintItem key={c.id} c={c} index={i} onDelete={(id) => setConstraints(prev => prev.filter(curr => curr.id !== id))} />
+                                                            ))}
+                                                        </div>
+                                                    </SortableContext>
+                                                </DndContext>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {step === 4 && (
+                                <div className="animate-in fade-in zoom-in duration-500">
+                                    <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <Button variant="ghost" onClick={() => setStep(3)} style={{ padding: '0', height: 'auto', marginBottom: '8px' }}><ArrowLeft size={14} /> 수정하러 돌아가기</Button>
+                                            <h2 style={{ fontSize: '2.25rem', fontWeight: 800 }}>Step 4. 배정 결과 최종 확인</h2>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <Button variant="outline" onClick={() => window.print()}><Printer size={16} /> PDF 출력</Button>
+                                            <Button variant="primary" onClick={() => alert('텔레그램 알림 발송 기능이 준비 중입니다.')}><Share2 size={16} /> 결과 공유 (텔레그램)</Button>
+                                        </div>
+                                    </header>
+
+                                    <FinalPresentation teams={teams} unassigned={unassigned} />
+
+                                    <Card style={{ marginTop: '48px', padding: '32px', textAlign: 'center', background: 'rgba(34, 197, 94, 0.05)', borderColor: 'rgba(34, 197, 94, 0.2)' }}>
+                                        <CheckCircle2 size={48} color="#16a34a" style={{ margin: '0 auto 16px' }} />
+                                        <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16a34a' }}>모든 배정이 완료되었습니다!</h3>
+                                        <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>데이터가 보관함에 안전하게 저장되었습니다. 언제든 다시 확인하실 수 있습니다.</p>
+                                        <div style={{ marginTop: '24px' }}>
+                                            <Link href="/"><Button variant="outline">대시보드로 가기</Button></Link>
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
                         </>
                     )}
                 </main>
             </div>
-            <FinalPreviewModal isOpen={isModalOpen} teams={teams} onClose={() => setIsModalOpen(false)} onConfirm={handleFinalConfirm} />
         </div>
     );
 }
 
-const SortableConstraintItem = ({ c, index, onDelete }: { c: any, index: number, onDelete: (id: string) => void }) => {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({ id: c.id });
+const FinalPresentation = ({ teams, unassigned }: { teams: TeamConfig[], unassigned: Personnel[] }) => {
+    const [view, setView] = useState<'team' | 'list'>('team');
 
+    return (
+        <div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', background: 'var(--surface)', padding: '4px', borderRadius: '10px', width: 'fit-content' }}>
+                <button onClick={() => setView('team')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: view === 'team' ? 'white' : 'transparent', fontWeight: 700, cursor: 'pointer', boxShadow: view === 'team' ? 'var(--shadow-sm)' : 'none' }}>조별 보기</button>
+                <button onClick={() => setView('list')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: view === 'list' ? 'white' : 'transparent', fontWeight: 700, cursor: 'pointer', boxShadow: view === 'list' ? 'var(--shadow-sm)' : 'none' }}>개인별 명단</button>
+            </div>
+
+            {view === 'team' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                    {teams.map(team => (
+                        <Card key={team.id} style={{ padding: '24px' }}>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, paddingBottom: '12px', borderBottom: '1px solid var(--border)', marginBottom: '16px' }}>{team.name} <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>({team.members?.length || 0}명)</span></h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {team.members?.map((m, idx) => (
+                                    <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(0,0,0,0.02)', borderRadius: '8px', fontSize: '0.9rem' }}>
+                                        <span style={{ fontWeight: 600 }}>{idx + 1}. {m.name}</span>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{m.tags?.[0]}</span>
+                                    </div>
+                                ))}
+                                {(!team.members || team.members.length === 0) && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>배정된 인원 없음</p>}
+                            </div>
+                        </Card>
+                    ))}
+                    {unassigned.length > 0 && (
+                        <Card style={{ padding: '24px', background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#b91c1c', marginBottom: '16px' }}>미배정 인원 ({unassigned.length}명)</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {unassigned.map(p => (
+                                    <div key={p.id} style={{ padding: '8px', background: 'white', borderRadius: '6px', fontSize: '0.85rem', border: '1px solid rgba(239,68,68,0.1)' }}>{p.name}</div>
+                                ))}
+                            </div>
+                        </Card>
+                    )}
+                </div>
+            ) : (
+                <Card style={{ padding: 0, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                        <thead style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                            <tr>
+                                <th style={{ padding: '16px' }}>이름</th>
+                                <th style={{ padding: '16px' }}>성별</th>
+                                <th style={{ padding: '16px' }}>정보</th>
+                                <th style={{ padding: '16px' }}>배정된 조</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[...teams.flatMap(t => (t.members || []).map(m => ({ ...m, teamName: t.name }))), ...unassigned.map(p => ({ ...p, teamName: '미배정' }))]
+                                .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+                                .map((p, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <td style={{ padding: '12px 16px', fontWeight: 600 }}>{p.name}</td>
+                                        <td style={{ padding: '12px 16px' }}>{p.gender === 'M' ? '남' : '여'}</td>
+                                        <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{p.tags?.join(', ')}</td>
+                                        <td style={{ padding: '12px 16px', fontWeight: 700, color: p.teamName === '미배정' ? '#ef4444' : 'var(--primary)' }}>{p.teamName}</td>
+                                    </tr>
+                                ))}
+                        </tbody>
+                    </table>
+                </Card>
+            )}
+        </div>
+    );
+};
+
+const SortableConstraintItem = ({ c, index, onDelete }: { c: any, index: number, onDelete: (id: string) => void }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: c.id });
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 100 : 1,
         background: isDragging ? 'var(--surface-elevated)' : 'var(--surface-hover)',
         opacity: isDragging ? 0.6 : 1,
-        border: isDragging ? '1px solid var(--primary)' : '1px solid var(--border)',
+        border: '1px solid var(--border)',
         padding: '12px',
-        borderRadius: '8px',
-        fontSize: '0.85rem',
+        borderRadius: '10px',
+        fontSize: '0.9rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '8px',
         boxShadow: isDragging ? 'var(--shadow-lg)' : 'none',
     };
 
     return (
         <div ref={setNodeRef} style={style}>
-            <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+            <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                 <GripVertical size={14} style={{ color: 'var(--text-muted)' }} />
-                <span style={{ fontWeight: 600, color: 'var(--primary)', minWidth: '20px' }}>{index + 1}.</span>
-                <span style={{ flex: 1, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.text}</span>
+                <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{index + 1}.</span>
+                <span style={{ color: 'var(--text-main)' }}>{c.text}</span>
             </div>
-            <button
-                onClick={() => onDelete(c.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '4px', display: 'flex', alignItems: 'center' }}
-            >
-                <X size={14} />
-            </button>
+            <button onClick={() => onDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '4px' }}><X size={16} /></button>
         </div>
     );
 };
 
-const StepItem = ({ number, title, active, completed }: { number: number, title: string, active: boolean, completed: boolean }) => {
-    return (
-        <li style={{ display: 'flex', alignItems: 'center', gap: '16px', opacity: active || completed ? 1 : 0.4 }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: active ? 'var(--primary-gradient)' : (completed ? 'var(--success)' : 'white'), border: active || completed ? 'none' : '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: active || completed ? 'white' : 'var(--text-muted)' }}>
-                {completed ? '✓' : number}
-            </div>
-            <span style={{ fontWeight: active ? 700 : 500, color: active ? 'var(--text-main)' : 'var(--text-secondary)' }}>{title}</span>
-        </li>
-    );
-}
+const StepItem = ({ number, title, active, completed }: { number: number, title: string, active: boolean, completed: boolean }) => (
+    <li style={{ display: 'flex', alignItems: 'center', gap: '16px', opacity: active || completed ? 1 : 0.4 }}>
+        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: active ? 'var(--primary-gradient)' : (completed ? 'var(--success)' : 'white'), border: active || completed ? 'none' : '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: active || completed ? 'white' : 'var(--text-muted)', fontSize: '0.9rem' }}>
+            {completed ? '✓' : number}
+        </div>
+        <span style={{ fontWeight: active ? 800 : 500, color: active ? 'var(--text-main)' : 'var(--text-secondary)', fontSize: '0.95rem' }}>{title}</span>
+    </li>
+);

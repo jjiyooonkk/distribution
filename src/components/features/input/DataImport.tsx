@@ -11,6 +11,7 @@ interface DataImportProps {
     onComplete: (data: Personnel[], columnHeaders: string[]) => void;
     onDataUpdate?: (data: Personnel[], columnHeaders: string[]) => void;
     onBack: () => void;
+    teams?: { id: string; name: string }[];
 }
 
 type ColumnMapping = {
@@ -25,7 +26,7 @@ type ExtraMapping = {
     header: string;
 };
 
-export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate, onBack }) => {
+export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate, onBack, teams = [] }) => {
     const [file, setFile] = useState<File | null>(null);
     const [data, setData] = useState<any[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
@@ -37,6 +38,8 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
     const [extraMappings, setExtraMappings] = useState<ExtraMapping[]>([]);
     const [isDragging, setIsDragging] = useState(false);
 
+    const [manualAssignments, setManualAssignments] = useState<Record<string, string>>({});
+    const [searchQuery, setSearchQuery] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,6 +123,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
         const studentIdIdx = headers.indexOf(mapping.studentId);
 
         return data.map((row, idx) => {
+            const pId = `p-${idx}`;
             const nameVal = row[nameIdx] || '';
             const isMale = genderIdx >= 0 && (String(row[genderIdx]).trim().toUpperCase().startsWith('M') || String(row[genderIdx]).trim() === '남');
             const studentId = studentIdIdx >= 0 ? String(row[studentIdIdx] || '') : '';
@@ -138,11 +142,12 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
             const mappedHeaders = [mapping.name, mapping.gender, mapping.studentId, ...extraMappings.map(m => m.header)].filter(Boolean);
 
             return {
-                id: `p-${idx}`,
+                id: pId,
                 name: String(nameVal).trim(),
                 gender: (genderIdx >= 0 ? (isMale ? 'M' : 'F') : undefined) as 'M' | 'F' | undefined,
                 history: [],
                 tags,
+                assignedTeamId: manualAssignments[pId] || undefined,
                 // UI 및 AI 분석용 (매핑된 것만)
                 attributes: headers.reduce((acc, header, hIdx) => {
                     if (header && row[hIdx] !== undefined && mappedHeaders.includes(header)) {
@@ -159,7 +164,7 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                 }, {} as Record<string, any>)
             };
         }).filter(p => !!p.name);
-    }, [data, headers, mapping, extraMappings, visibleHeaders]);
+    }, [data, headers, mapping, extraMappings, manualAssignments]);
 
 
     React.useEffect(() => {
@@ -170,6 +175,18 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
 
     const finalizeImport = () => {
         onComplete(processedPersonnel, visibleHeaders);
+    };
+
+    const filteredPreview = React.useMemo(() => {
+        if (!searchQuery) return processedPersonnel.slice(0, 10);
+        return processedPersonnel.filter(p => p.name.includes(searchQuery)).slice(0, 20);
+    }, [processedPersonnel, searchQuery]);
+
+    const handleManualAssign = (pId: string, teamId: string) => {
+        setManualAssignments(prev => ({
+            ...prev,
+            [pId]: teamId
+        }));
     };
 
     return (
@@ -328,35 +345,85 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                         </div>
                     </div>
 
-                    {/* Data Preview */}
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>가져온 데이터 미리보기 ({Math.min(5, data.length)} / {data.length})</h3>
-                    <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                    {/* Data Preview & Manual Assignment */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>데이터 미리보기 및 고정 배정 ({data.length}명 중 {searchQuery ? filteredPreview.length : Math.min(10, data.length)}명 표시)</h3>
+                        <div style={{ width: '250px' }}>
+                            <input
+                                type="text"
+                                placeholder="이름으로 검색..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 12px',
+                                    fontSize: '0.85rem',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '8px',
+                                    background: 'var(--surface-hover)'
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px', maxHeight: '400px', overflowY: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                            <thead style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                            <thead style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 10 }}>
                                 <tr>
                                     {visibleHeaders.map((h, i) => (
-                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
+                                        <th key={i} style={{ padding: '12px', textAlign: 'left', backgroundColor: 'var(--surface)' }}>
                                             {h}
                                         </th>
                                     ))}
+                                    <th style={{ padding: '12px', textAlign: 'left', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', fontWeight: 700 }}>
+                                        고정 배정 (선택)
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {data.slice(0, 5).map((row, i) => (
-                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                        {visibleHeaders.map((h, hIdx) => {
-                                            const originalIdx = headers.indexOf(h);
-                                            return (
-                                                <td key={hIdx} style={{ padding: '12px' }}>
-                                                    {row[originalIdx] !== undefined ? String(row[originalIdx]) : '-'}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
+                                {filteredPreview.map((p, i) => {
+                                    // p.id is `p-${originalIdx}`. We can find original data row by split or just using the attributes
+                                    return (
+                                        <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', backgroundColor: p.assignedTeamId ? 'rgba(99, 102, 241, 0.03)' : 'inherit' }}>
+                                            {visibleHeaders.map((h, hIdx) => {
+                                                const val = p.attributes?.[h] || p.fullAttributes?.[h] || (h === mapping.name ? p.name : '');
+                                                return (
+                                                    <td key={hIdx} style={{ padding: '12px' }}>
+                                                        {val !== undefined ? String(val) : '-'}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td style={{ padding: '12px' }}>
+                                                <select
+                                                    value={p.assignedTeamId || ''}
+                                                    onChange={(e) => handleManualAssign(p.id, e.target.value)}
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        borderRadius: '6px',
+                                                        border: `1px solid ${p.assignedTeamId ? 'var(--primary)' : 'var(--border)'}`,
+                                                        fontSize: '0.85rem',
+                                                        backgroundColor: p.assignedTeamId ? 'rgba(99, 102, 241, 0.05)' : 'white',
+                                                        color: p.assignedTeamId ? 'var(--primary)' : 'inherit',
+                                                        fontWeight: p.assignedTeamId ? 600 : 400
+                                                    }}
+                                                >
+                                                    <option value="">자동 배정</option>
+                                                    {teams.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
+                    {data.length > 10 && !searchQuery && (
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
+                            검색 기능을 통해 특정 인원의 고정 배정을 설정할 수 있습니다.
+                        </p>
+                    )}
                 </div>
             )}
 

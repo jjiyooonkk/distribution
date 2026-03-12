@@ -228,19 +228,24 @@ export default function NewProjectPage() {
     const handleDataImportComplete = (importedData: Personnel[], headers: string[]) => {
         setColumnHeaders(headers);
         let initialTeams: TeamConfig[] = teams.map(t => ({ ...t, members: [] }));
-        let remainingPersonnel = [...importedData];
+        const assignedIds = new Set<string>();
+        const teamMap = new Map<string, Personnel[]>();
+        initialTeams.forEach(t => teamMap.set(t.id, []));
 
+        // 1. 수동 고정 배정 적용 (DataImport에서 사용자가 직접 지정한 경우)
+        importedData.forEach(person => {
+            if (person.assignedTeamId && teamMap.has(person.assignedTeamId)) {
+                teamMap.get(person.assignedTeamId)?.push(person);
+                assignedIds.add(person.id);
+            }
+        });
+
+        // 2. AI 에이전트 배정 적용 (수동 배정이 없는 사람에 대해서만)
         if (agentAssignments.length > 0) {
-            const teamMap = new Map<string, Personnel[]>();
-            initialTeams.forEach(t => teamMap.set(t.id, []));
-            const assignedIds = new Set<string>();
-
             agentAssignments.forEach(assign => {
-                // ID 또는 이름으로 사람 찾기
                 const person = importedData.find(p => p.id === assign.personId || p.name === assign.personId);
                 const teamExists = teamMap.has(assign.teamId);
 
-                // 이미 배정된 사람이면 건너뜀 (중복 방지)
                 if (person && teamExists && !assignedIds.has(person.id)) {
                     teamMap.get(assign.teamId)?.push({
                         ...person,
@@ -249,13 +254,14 @@ export default function NewProjectPage() {
                     assignedIds.add(person.id);
                 }
             });
-
-            initialTeams = initialTeams.map(t => ({
-                ...t,
-                members: teamMap.get(t.id) || []
-            }));
-            remainingPersonnel = importedData.filter(p => !assignedIds.has(p.id));
         }
+
+        initialTeams = initialTeams.map(t => ({
+            ...t,
+            members: teamMap.get(t.id) || []
+        }));
+
+        const remainingPersonnel = importedData.filter(p => !assignedIds.has(p.id));
 
         if (remainingPersonnel.length > 0) {
             const distribution = distributePersonnel(remainingPersonnel, initialTeams);
@@ -400,7 +406,7 @@ export default function NewProjectPage() {
                                         <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '12px' }}>Step 2. 데이터 가져오기</h2>
                                         <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6' }}>인원 명단(Excel/CSV)을 업로드하세요.</p>
                                     </div>
-                                    <DataImport onComplete={handleDataImportComplete} onDataUpdate={handleDataUpdate} onBack={() => setStep(1)} />
+                                    <DataImport onComplete={handleDataImportComplete} onDataUpdate={handleDataUpdate} onBack={() => setStep(1)} teams={teams} />
                                     <AgentChat onRunAgent={handleRunAgent} isLoading={isAgentLoading} lastRationale={agentRationale} logs={agentLogs} />
                                 </div>
                             </div>

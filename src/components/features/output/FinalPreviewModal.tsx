@@ -25,7 +25,7 @@ export const FinalPreviewModal: React.FC<FinalPreviewModalProps> = ({
 
     // Mock Preview of the first few messages
     const sampleMessages = teams.flatMap(t =>
-        (t.members || []).slice(0, 1).map(m => ({
+        (t.members || []).filter((m): m is Personnel => m !== null).slice(0, 1).map(m => ({
             to: m.name,
             contact: "010-xxxx-xxxx",
             content: `[인원분배 배정 알림]\n안녕하세요 ${m.name}님,\n귀하는 [${t.name}]에 배정되셨습니다.\n${customMessage}`

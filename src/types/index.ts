@@ -7,7 +7,7 @@ export interface TeamConfig {
     id: string;
     name: string;
     capacity: number;
-    members?: Personnel[];
+    members?: (Personnel | null)[];
 }
 
 export interface Personnel {

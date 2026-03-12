@@ -110,7 +110,7 @@ export default function NewProjectPage() {
 
             // Prepare current state (all people including already assigned)
             const allPeople = [...unassigned];
-            teams.forEach(t => t.members?.forEach(m => allPeople.push(m)));
+            teams.forEach(t => t.members?.forEach(m => { if (m) allPeople.push(m); }));
 
             const response = await fetch('/api/agent', {
                 method: 'POST',
@@ -132,14 +132,14 @@ export default function NewProjectPage() {
 
             if (data.assignments && data.assignments.length > 0) {
                 // Apply AI results
-                const newTeams = teams.map(t => ({ ...t, members: [] }));
+                const newTeams: TeamConfig[] = teams.map(t => ({ ...t, members: [] as Personnel[] }));
                 const assignedIds = new Set<string>();
 
                 data.assignments.forEach((as: any) => {
                     const person = allPeople.find(p => p.id === as.personId || p.name === as.personId);
                     const targetTeam = newTeams.find(t => t.id === as.teamId);
                     if (person && targetTeam && !assignedIds.has(person.id)) {
-                        targetTeam.members = targetTeam.members || [];
+                        targetTeam.members = targetTeam.members || ([] as Personnel[]);
                         targetTeam.members.push({ ...person, assignedTeamId: targetTeam.id });
                         assignedIds.add(person.id);
                     }
@@ -270,7 +270,7 @@ export default function NewProjectPage() {
                                             <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Step 3. 인원 배정 및 AI 최적화</h2>
                                             <p style={{ color: 'var(--text-secondary)' }}>각 조의 슬롯에 인원을 직접 배정하거나 AI에게 복잡한 규칙을 주문하세요.</p>
                                         </div>
-                                        <Button onClick={() => setStep(4)} variant="primary" size="lg" style={{ padding: '0 32px' }}>
+                                        <Button onClick={() => setStep(4)} variant="primary" style={{ padding: '0 32px' }}>
                                             최종 확정 및 결과 확인 <ArrowRight size={18} style={{ marginLeft: '8px' }} />
                                         </Button>
                                     </header>
@@ -357,7 +357,7 @@ const FinalPresentation = ({ teams, unassigned }: { teams: TeamConfig[], unassig
                         <Card key={team.id} style={{ padding: '24px' }}>
                             <h3 style={{ fontSize: '1.2rem', fontWeight: 800, paddingBottom: '12px', borderBottom: '1px solid var(--border)', marginBottom: '16px' }}>{team.name} <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>({team.members?.length || 0}명)</span></h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {team.members?.map((m, idx) => (
+                                {team.members?.filter((m): m is Personnel => m !== null).map((m, idx) => (
                                     <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(0,0,0,0.02)', borderRadius: '8px', fontSize: '0.9rem' }}>
                                         <span style={{ fontWeight: 600 }}>{idx + 1}. {m.name}</span>
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{m.tags?.[0]}</span>
@@ -390,8 +390,11 @@ const FinalPresentation = ({ teams, unassigned }: { teams: TeamConfig[], unassig
                             </tr>
                         </thead>
                         <tbody>
-                            {[...teams.flatMap(t => (t.members || []).map(m => ({ ...m, teamName: t.name }))), ...unassigned.map(p => ({ ...p, teamName: '미배정' }))]
-                                .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+                            {[
+                                ...teams.flatMap(t => (t.members || []).filter((m): m is Personnel => m !== null).map(m => ({ ...m, teamName: t.name }))),
+                                ...unassigned.map(p => ({ ...p, teamName: '미배정' }))
+                            ]
+                                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'))
                                 .map((p, i) => (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                         <td style={{ padding: '12px 16px', fontWeight: 600 }}>{p.name}</td>

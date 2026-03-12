@@ -28,7 +28,7 @@ export const distributePersonnel = (
 
     // Tracking assigned IDs to avoid double assignment or re-assignment
     const assignedIds = new Set<string>();
-    teams.forEach(t => t.members.forEach(m => assignedIds.add(m.id)));
+    teams.forEach(t => (t.members || []).forEach(m => { if (m) assignedIds.add(m.id); }));
 
     // PHASE 1: Apply Rules
     rules.forEach((rule, idx) => {
@@ -45,15 +45,17 @@ export const distributePersonnel = (
         if (rule.type === 'assign_to_team') {
             const targetTeam = teams.find(t => t.id === rule.targetTeamId);
             if (targetTeam) {
+                targetTeam.members = targetTeam.members || [];
                 targets.forEach(p => {
-                    if (targetTeam.members.length < targetTeam.capacity) {
-                        targetTeam.members.push({ ...p, assignedTeamId: targetTeam.id });
+                    const filledCount = targetTeam.members?.filter(Boolean).length || 0;
+                    if (filledCount < targetTeam.capacity) {
+                        targetTeam.members?.push({ ...p, assignedTeamId: targetTeam.id });
                         assignedIds.add(p.id);
                     } else {
                         logs.push(`   -> Team ${targetTeam.name} full. Skipped ${p.name}.`);
                     }
                 });
-                logs.push(`   -> Assigned ${targets.length} people to ${targetTeam.name}.`);
+                logs.push(`   -> Assigned people to ${targetTeam.name}.`);
             }
         } else if (rule.type === 'distribute_evenly') {
             // Sort teams by current count of THIS specific condition to balance it?
@@ -68,17 +70,20 @@ export const distributePersonnel = (
                 // Find team with LOWEST count of people matching this rule
                 // AND having capacity
                 const bestTeam = teams
-                    .filter(t => t.members.length < t.capacity)
+                    .filter(t => (t.members?.filter(Boolean).length || 0) < t.capacity)
                     .sort((a, b) => {
-                        const countA = a.members.filter(m => getPersonValue(m, rule.column).includes(rule.value || '')).length;
-                        const countB = b.members.filter(m => getPersonValue(m, rule.column).includes(rule.value || '')).length;
+                        const countA = (a.members?.filter((m): m is Personnel => m !== null) || []).filter(m => getPersonValue(m, rule.column).includes(rule.value || '')).length;
+                        const countB = (b.members?.filter((m): m is Personnel => m !== null) || []).filter(m => getPersonValue(m, rule.column).includes(rule.value || '')).length;
                         // Determine fairness
                         if (countA !== countB) return countA - countB;
                         // Secondary: Total fill rate
-                        return (a.members.length / a.capacity) - (b.members.length / b.capacity);
+                        const fillA = (a.members?.filter(Boolean).length || 0) / a.capacity;
+                        const fillB = (b.members?.filter(Boolean).length || 0) / b.capacity;
+                        return fillA - fillB;
                     })[0];
 
                 if (bestTeam) {
+                    bestTeam.members = bestTeam.members || [];
                     bestTeam.members.push({ ...p, assignedTeamId: bestTeam.id });
                     assignedIds.add(p.id);
                 }
@@ -129,23 +134,24 @@ export const distributePersonnel = (
         // Also consider gender balance: if person is Male, prioritize teams with lower Male%
 
         const possibleTeams = teams
-            .filter(t => t.members.length < t.capacity)
+            .filter(t => (t.members?.filter(Boolean).length || 0) < t.capacity)
             .sort((a, b) => {
                 // Primary sort: Fill percentage (asc)
-                const fillA = a.members.length / a.capacity;
-                const fillB = b.members.length / b.capacity;
+                const fillA = (a.members?.filter(Boolean).length || 0) / a.capacity;
+                const fillB = (b.members?.filter(Boolean).length || 0) / b.capacity;
                 if (fillA !== fillB) return fillA - fillB;
 
                 // Secondary sort: Gender Balance
                 // If person is M, prefer team with fewer M
-                const mCountA = a.members.filter(m => m.gender === 'M').length;
-                const mCountB = b.members.filter(m => m.gender === 'M').length;
+                const mCountA = (a.members?.filter((m): m is Personnel => m !== null) || []).filter(m => m.gender === 'M').length;
+                const mCountB = (b.members?.filter((m): m is Personnel => m !== null) || []).filter(m => m.gender === 'M').length;
                 return mCountA - mCountB;
             });
 
         let assigned = false;
         for (const team of possibleTeams) {
             if (canAssign(person, team.name)) {
+                team.members = team.members || [];
                 team.members.push({ ...person, assignedTeamId: team.id });
                 assignedIds.add(person.id);
                 assigned = true;

@@ -198,13 +198,14 @@ export const DataImport: React.FC<DataImportProps> = ({ onComplete, onDataUpdate
                     </div>
                     <div style={{ textAlign: 'center' }}>
                         <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>파일을 클릭하거나 여기로 드래그하세요</p>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>지원 형식: .xlsx, .csv</p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>지원 형식: <strong>.xlsx</strong> (추천)</p>
+                        <p style={{ color: 'var(--error)', fontSize: '0.8rem', marginTop: '4px' }}>※ CSV 파일은 컬럼 인식이 원활하지 않을 수 있습니다.</p>
                     </div>
                     <input
                         type="file"
                         ref={fileInputRef}
                         onChange={handleFileUpload}
-                        accept=".xlsx,.xls,.csv"
+                        accept=".xlsx,.xls"
                         style={{ display: 'none' }}
                     />
                 </label>
